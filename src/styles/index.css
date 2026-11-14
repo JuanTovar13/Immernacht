@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+@import "@fontsource/cinzel/500.css";
+@import "@fontsource/cinzel/600.css";
+@import "@fontsource/cinzel-decorative/400.css";
+@import "@fontsource/cinzel-decorative/700.css";
+@import "@fontsource/manrope/400.css";
+@import "@fontsource/manrope/500.css";
+@import "@fontsource/manrope/700.css";
+
+/* ============================================================
+   El Reino de la Noche Eterna — Design Tokens
+   ============================================================ */
+:root {
+  /* --- Base: cielo de eclipse --- */
+  --color-void: #0a0d18;
+  --color-void-deep: #050710;
+  --color-panel: #151a2e;
+  --color-panel-raised: #1d2440;
+  --color-border: #2c3358;
+
+  --color-parchment: #f1ead8;
+  --color-parchment-dim: #b8b2a0;
+  --color-muted: #8b8fa8;
+
+  --color-eclipse-gold: #e8c468;
+  --color-eclipse-gold-soft: #a88a4a;
+
+  /* --- Identidad por tipo de evento --- */
+  --celestial-bright: #f4d58d;
+  --celestial-deep: #2c3a6b;
+  --celestial-glow: #8fb8e8;
+
+  --natural-bright: #8fbf6a;
+  --natural-deep: #223a26;
+  --natural-glow: #c9e0a0;
+
+  --arcano-bright: #b27fe8;
+  --arcano-deep: #3a2452;
+  --arcano-glow: #d9b8ff;
+
+  --terrenal-bright: #c08552;
+  --terrenal-deep: #4a3b2e;
+  --terrenal-glow: #e0b98a;
+
+  /* --- Identidad por raza (uso sutil: acentos, iconografía) --- */
+  --raza-humanos: #d8b26a;
+  --raza-elfos: #7fbf8f;
+  --raza-enanos: #c97b4a;
+  --raza-nomuertos: #7a8ba0;
+
+  --font-display: "Cinzel", "Iowan Old Style", serif;
+  --font-decorative: "Cinzel Decorative", "Cinzel", "Iowan Old Style", serif;
+  --font-body: "Manrope", "Segoe UI", sans-serif;
+}
+
+/* Tailwind CSS v4 directive; it is intentionally not a standard CSS at-rule. */
+/* stylelint-disable-next-line at-rule-no-unknown */
+@theme {
+  --color-void: var(--color-void);
+  --color-panel: var(--color-panel);
+  --color-parchment: var(--color-parchment);
+  --color-eclipse-gold: var(--color-eclipse-gold);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  overscroll-behavior: none; /* sin rebote/scroll elástico ni scroll lateral */
+}
+
+/* Altura real visible en el celular: en navegadores viejos usa 100vh (toda la
+   pantalla, incluso detrás de la barra del navegador); donde hay soporte,
+   100dvh corrige eso y usa solo el área realmente visible — así ningún botón
+   queda oculto detrás de la barra de direcciones. */
+.app-root {
+  height: 100vh;
+  height: 100dvh;
+}
+
+body {
+  background: var(--color-void);
+  color: var(--color-parchment);
+  font-family: var(--font-body);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Textura sutil de "pergamino nocturno" — grano fino, no una imagen pesada */
+.bg-noise {
+  position: relative;
+}
+.bg-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

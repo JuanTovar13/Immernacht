@@ -1,0 +1,12 @@
+# Dependencias (se reinstalan con npm install)
+node_modules/
+arduino-bridge/node_modules/
+
+# Build (se genera con npm run build)
+dist/
+
+# Sistema y editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
