@@ -486,6 +486,26 @@ const ICONO_FICHA: Record<RazaId, { src: string; centro: Punto }> = {
 /** Tamaño de la imagen completa en el tablero (el dibujo mide ~32 unidades). */
 const FICHA_W = 41;
 
+/** Aura de una ficha protegida: halo suave + anillo punteado que gira, por fuera del ícono. */
+function AuraProteccion({ color, r }: { color: string; r: number }) {
+  return (
+    <g style={{ pointerEvents: "none" }}>
+      <motion.circle
+        r={r}
+        fill={color}
+        initial={{ fillOpacity: 0.12 }}
+        animate={{ fillOpacity: [0.08, 0.2, 0.08] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <g>
+        <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite" />
+        <circle r={r} fill="none" stroke="#1b1c24" strokeWidth={4.5} strokeOpacity={0.55} strokeDasharray="5 3.5" />
+        <circle r={r} fill="none" stroke={color} strokeWidth={2.6} strokeDasharray="5 3.5" />
+      </g>
+    </g>
+  );
+}
+
 function caminoDe(raza: RazaId, desde: number | null, hasta: number | null, n: number): Punto[] {
   const fin = puntoFicha(raza, hasta, n);
   if (desde === null || hasta === null || desde === hasta) return [fin];
@@ -549,6 +569,10 @@ function FichaToken({
         />
       )}
       <motion.g animate={{ scale: seleccionada ? 1.18 : 1 }} transition={{ type: "spring", stiffness: 300, damping: 18 }}>
+        {/* Escudo de Luz (dorado) y Simbiosis de Enredaderas (verde) usan la misma aura,
+            detrás del ícono; si la ficha tiene las dos, la verde va un poco más afuera. */}
+        {ficha.proteccion && <AuraProteccion color="#8fbf6a" r={ficha.escudo ? 28.5 : 24} />}
+        {ficha.escudo && <AuraProteccion color="#f4d58d" r={24} />}
         <ellipse cx={0} cy={15} rx={14} ry={4.5} fill="#000" opacity={0.4} />
         <image
           href={ICONO_FICHA[ficha.raza].src}
@@ -559,8 +583,6 @@ function FichaToken({
           filter="url(#sombra)"
           style={{ pointerEvents: "none" }}
         />
-        {ficha.escudo && <circle r={20} fill="none" stroke="#f4d58d" strokeWidth={2.5} strokeDasharray="5 3" />}
-        {ficha.proteccion && <circle r={23} fill="none" stroke="#8fbf6a" strokeWidth={2.5} strokeDasharray="2 3" />}
         {ficha.bloqueo > 0 && (
           <g>
             <circle cx={12} cy={-13} r={8} fill="#6b5a48" stroke="#1b1c24" strokeWidth={1.5} />

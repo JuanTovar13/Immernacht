@@ -43,6 +43,17 @@ const VOLUMEN_MUSICA_CON_NARRACION = 0.12;
  *  fondo o el sonido de victoria) — para restaurarlo correctamente tras la
  *  narración, en vez de un valor fijo que no respeta el volumen de cada pista. */
 let volumenMusicaBase = VOLUMEN_MUSICA_NORMAL;
+/** Cuánto baja la música (proporción) mientras habla el narrador. */
+const PROPORCION_CON_NARRACION = VOLUMEN_MUSICA_CON_NARRACION / VOLUMEN_MUSICA_NORMAL;
+const VOLUMEN_NARRACION = 0.95;
+
+/** Volumen de cada canal (0..1), lo controla la pantalla de ajustes. */
+const canal = { musica: 1, efectos: 1, voces: 1 };
+let narrando = false;
+
+/** Volumen real de la música según el ajuste del jugador (y si habla el narrador). */
+const volMusica = (conNarracion = narrando) =>
+  volumenMusicaBase * canal.musica * (conNarracion ? PROPORCION_CON_NARRACION : 1);
 
 const SFX_TIPO: Record<TipoEvento, string> = {
   celestial: "/audio/sfx/tipos/celestial-reveal.mp3",
@@ -54,7 +65,7 @@ const SFX_TIPO: Record<TipoEvento, string> = {
 function playSafe(src: string, volumen = 0.6) {
   new Howl({
     src: [src],
-    volume: volumen,
+    volume: volumen * canal.efectos,
     onloaderror: () => console.warn(`[audio] Falta el archivo: ${src}`),
   }).play();
 }
@@ -66,7 +77,7 @@ const sfxEventoActivos = new Set<Howl>();
 function playSfxRastreado(src: string, volumen = 0.6) {
   const h: Howl = new Howl({
     src: [src],
-    volume: volumen,
+    volume: volumen * canal.efectos,
     onend: () => sfxEventoActivos.delete(h),
     onstop: () => sfxEventoActivos.delete(h),
     onloaderror: () => {
@@ -78,33 +89,56 @@ function playSfxRastreado(src: string, volumen = 0.6) {
   h.play();
 }
 
+/**
+ * Elimina la pista de música actual. Se usa unload() y no stop(): si la pista
+ * aún está cargando, stop() solo queda "en cola" en Howler y la música podía
+ * empezar a sonar después igualmente, encima de la nueva.
+ */
+function descartarMusica() {
+  musicaActual?.unload();
+  musicaActual = null;
+  pistaActual = null;
+}
+
 export const audioManager = {
   setMuted(muted: boolean) {
     Howler.mute(muted);
   },
 
+  /** Aplica los ajustes del jugador: volumen por canal y silencio total. */
+  aplicarAjustes(a: { musica: number; efectos: number; voces: number; silenciado: boolean }) {
+    canal.musica = a.musica;
+    canal.efectos = a.efectos;
+    canal.voces = a.voces;
+    Howler.mute(a.silenciado);
+    musicaActual?.volume(volMusica());
+    narracionActual?.volume(VOLUMEN_NARRACION * canal.voces);
+  },
+
   /** Reproduce música de fondo en loop. Si ya es la pista actual, no la reinicia
    *  (evita que la música "salte" al volver de un estado a otro). */
   playMusicaAmbiental(src: string, volumen = VOLUMEN_MUSICA_NORMAL) {
-    if (pistaActual === src && musicaActual?.playing()) return;
-    musicaActual?.stop();
+    // Si ya es la pista actual NO se crea otra, aunque todavía esté cargando o
+    // esperando a que el navegador permita reproducir audio (antes se comprobaba
+    // playing(), que en ese momento es false, y la música terminaba sonando doble).
+    if (pistaActual === src && musicaActual) return;
+    descartarMusica();
     musicaActual = new Howl({
       src: [src],
       loop: true,
-      volume: volumen,
+      volume: volumen * canal.musica,
       onloaderror: () => console.warn(`[audio] Falta el archivo de música: ${src}`),
     });
     pistaActual = src;
     volumenMusicaBase = volumen;
+    musicaActual.volume(volMusica());
     musicaActual.play();
   },
 
   /** Detiene lo que esté sonando en el canal de música/ambiente (incluye el
    *  sonido de victoria, que usa este mismo canal — ver playSfxVictoria). */
   detenerMusica() {
-    musicaActual?.stop();
-    musicaActual = null;
-    pistaActual = null;
+    descartarMusica();
   },
 
   /** Click genérico — llamar en el onClick de CUALQUIER botón de la app. */
@@ -120,11 +154,11 @@ export const audioManager = {
    *  usa el mismo canal que playMusicaAmbiental, así se puede detener al salir
    *  (detenerMusica) y baja de volumen automáticamente si habla el narrador. */
   playSfxVictoria(volumen = 0.6) {
-    musicaActual?.stop();
+    descartarMusica();
     musicaActual = new Howl({
       src: ["/audio/sfx/victoria.mp3"],
       loop: false,
-      volume: volumen,
+      volume: volumen * canal.musica,
       onloaderror: () => console.warn("[audio] Falta el archivo: /audio/sfx/victoria.mp3"),
     });
     pistaActual = "/audio/sfx/victoria.mp3";
@@ -155,19 +189,24 @@ export const audioManager = {
   },
 
   /** Narración pre-grabada. Baja el volumen de la música mientras habla
-   *  y lo restaura automáticamente al terminar. */
-  playNarracion(eventoId: string) {
+   *  y lo restaura automáticamente al terminar. `alTerminar` se llama cuando
+   *  la voz acaba (o si el archivo no existe), no si se corta con detenerNarracion. */
+  playNarracion(eventoId: string, alTerminar?: () => void) {
     narracionActual?.stop();
-    if (musicaActual) musicaActual.fade(musicaActual.volume(), VOLUMEN_MUSICA_CON_NARRACION, 500);
+    narrando = true;
+    if (musicaActual) musicaActual.fade(musicaActual.volume(), volMusica(true), 500);
+    const terminar = () => {
+      narrando = false;
+      if (musicaActual) musicaActual.fade(musicaActual.volume(), volMusica(false), 700);
+      alTerminar?.();
+    };
     narracionActual = new Howl({
       src: [`/audio/narracion/${eventoId}.mp3`],
-      volume: 0.95,
-      onend: () => {
-        if (musicaActual) musicaActual.fade(musicaActual.volume(), volumenMusicaBase, 700);
-      },
+      volume: VOLUMEN_NARRACION * canal.voces,
+      onend: terminar,
       onloaderror: () => {
         console.warn(`[audio] Falta el clip de narración para "${eventoId}"`);
-        if (musicaActual) musicaActual.fade(musicaActual.volume(), volumenMusicaBase, 700);
+        terminar();
       },
     });
     narracionActual.play();
@@ -175,6 +214,16 @@ export const audioManager = {
 
   detenerNarracion() {
     narracionActual?.stop();
-    if (musicaActual) musicaActual.fade(musicaActual.volume(), volumenMusicaBase, 500);
+    narracionActual = null;
+    narrando = false;
+    if (musicaActual) musicaActual.fade(musicaActual.volume(), volMusica(false), 500);
   },
 };
+
+// En desarrollo, al recargar este archivo en caliente se pierde la referencia a la
+// música que estaba sonando; se descarga todo para que no quede sonando duplicada.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    Howler.unload();
+  });
+}

@@ -178,8 +178,9 @@ export function GameScreen() {
           })}
         </motion.div>
 
-        {/* Panel de conexión con el Arduino — discreto, en la esquina */}
-        <div className="absolute right-3 top-3 flex flex-col items-end gap-1">
+        {/* Panel de conexión con el Arduino — discreto, en la esquina superior izquierda
+            (la derecha es para los controles de sonido y ajustes) */}
+        <div className="absolute left-3 top-3 flex flex-col items-start gap-1 sm:left-5 sm:top-5">
           <div className="flex items-center gap-1">
             <span
               className="h-1.5 w-1.5 rounded-full"

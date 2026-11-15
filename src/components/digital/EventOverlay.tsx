@@ -6,6 +6,7 @@ import { MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO } from "../../game/types";
 import { EFECTO_INFO } from "../../game/lore";
 import type { ResultadoEvento } from "../../game/digital/engine";
 import { audioManager } from "../../audio/audioManager";
+import { useModoEvento } from "../../game/useModoEvento";
 
 /** Revelación de un evento del Portal dentro de la partida digital. */
 export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoEvento; onContinuar: () => void }) {
@@ -13,21 +14,25 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
   const info = TIPOS_EVENTO[evento.tipo];
   const efecto = MATRIZ_EFECTOS[raza][evento.tipo];
 
+  const cerrar = () => {
+    audioManager.detenerNarracion();
+    audioManager.detenerSfxEvento();
+    onContinuar();
+  };
+  // Narración y cierre automático según el modo de eventos (normal / auto / rápido).
+  const { ritmo } = useModoEvento(evento.id, cerrar, { duracionRapida: 2000 });
+  const t = (s: number) => s * ritmo;
+
   useEffect(() => {
     audioManager.playSfxRevelacion(evento.tipo);
-    const tNarracion = setTimeout(() => audioManager.playNarracion(evento.id), 500);
-    const tAccion = setTimeout(() => audioManager.playSfxEvento(evento.id), 2900);
-    return () => {
-      clearTimeout(tNarracion);
-      clearTimeout(tAccion);
-    };
+    const tAccion = setTimeout(() => audioManager.playSfxEvento(evento.id), t(2900));
+    return () => clearTimeout(tAccion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evento.id, evento.tipo]);
 
   const continuar = () => {
     audioManager.playSfxBoton();
-    audioManager.detenerNarracion();
-    audioManager.detenerSfxEvento();
-    onContinuar();
+    cerrar();
   };
 
   return (
@@ -55,7 +60,7 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
             }}
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.5, delay: t(0.3) }}
           >
             <div
               className="flex items-center gap-2 rounded-full border px-4 py-1"
@@ -73,16 +78,16 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
               className="text-center font-display text-2xl leading-tight"
               style={{ color: `var(${info.brightVar})`, filter: `drop-shadow(0 0 16px color-mix(in srgb, var(${info.glowVar}) 60%, transparent))` }}
             >
-              <RevealWords texto={evento.nombre} delayStart={0.7} stagger={0.1} />
+              <RevealWords texto={evento.nombre} delayStart={t(0.7)} stagger={0.1 * ritmo} />
             </h2>
             <p className="text-center text-sm text-[color:var(--color-parchment)]">
-              <RevealWords texto={evento.descripcion} delayStart={1.2} stagger={0.03} />
+              <RevealWords texto={evento.descripcion} delayStart={t(1.2)} stagger={0.03 * ritmo} />
             </p>
             <motion.p
               className="text-center text-xs text-[color:var(--color-parchment-dim)]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 1.8 }}
+              transition={{ delay: t(1.8) }}
             >
               {evento.efecto}
             </motion.p>
@@ -92,7 +97,7 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
               style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 35%, transparent)` }}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 2.3 }}
+              transition={{ delay: t(2.3) }}
             >
               <div className="mb-2 flex items-center justify-center gap-2 text-xs">
                 <img src={RAZAS[raza].logo} alt="" className="h-5 w-5 object-contain" />
@@ -115,7 +120,7 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
             style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 60%, transparent)`, color: `var(${info.brightVar})` }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 2.6 }}
+            transition={{ delay: t(2.6) }}
             whileTap={{ scale: 0.95 }}
           >
             Continuar

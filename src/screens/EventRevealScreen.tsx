@@ -7,39 +7,43 @@ import { StarField } from "../components/StarField";
 import { TIPOS_EVENTO, type EventoDef } from "../game/types";
 import { useGameStore } from "../game/store";
 import { audioManager } from "../audio/audioManager";
+import { useModoEvento } from "../game/useModoEvento";
 
 export function EventRevealScreen() {
   const evento = useGameStore((s) => s.eventoActual);
   const eventoNulo = useGameStore((s) => s.eventoNulo);
   const cerrarEvento = useGameStore((s) => s.cerrarEvento);
 
-  const continuar = () => {
-    audioManager.playSfxBoton();
+  // cerrar: sin sonido de botón (lo usa también el cierre automático).
+  const cerrar = () => {
     audioManager.detenerNarracion();
     audioManager.detenerSfxEvento();
     cerrarEvento();
   };
 
   if (eventoNulo) {
-    return <NadaOcurreScreen onContinuar={continuar} />;
+    return <NadaOcurreScreen onCerrar={cerrar} />;
   }
   if (!evento) return null;
-  return <EventoRevelado evento={evento} onContinuar={continuar} />;
+  return <EventoRevelado evento={evento} onCerrar={cerrar} />;
 }
 
 /* ================= Un evento real ocurrió ================= */
-function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinuar: () => void }) {
+function EventoRevelado({ evento, onCerrar }: { evento: EventoDef; onCerrar: () => void }) {
   const info = TIPOS_EVENTO[evento.tipo];
   const esTerrenal = evento.tipo === "terrenal";
+  // Narración y cierre automático según el modo de eventos (normal / auto / rápido).
+  const { ritmo } = useModoEvento(evento.id, onCerrar, { duracionRapida: 2400 });
+  const t = (s: number) => s * ritmo;
+  const onContinuar = () => {
+    audioManager.playSfxBoton();
+    onCerrar();
+  };
 
   useEffect(() => {
     audioManager.playSfxRevelacion(evento.tipo);
-    const tNarracion = setTimeout(() => audioManager.playNarracion(evento.id), 500);
-    const tAccion = setTimeout(() => audioManager.playSfxEvento(evento.id), 2900);
-    return () => {
-      clearTimeout(tNarracion);
-      clearTimeout(tAccion);
-    };
+    const tAccion = setTimeout(() => audioManager.playSfxEvento(evento.id), t(2900));
+    return () => clearTimeout(tAccion);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [evento.id]);
 
@@ -76,7 +80,7 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
           }}
           initial={{ opacity: 0, scale: 0.94 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5, delay: 0.45, ease: "easeOut" }}
+          transition={{ duration: 0.5, delay: t(0.45), ease: "easeOut" }}
         >
           <motion.div
             className="flex items-center gap-2 rounded-full border px-4 py-1.5"
@@ -86,7 +90,7 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
             }}
             initial={{ opacity: 0, scale: 0.5, y: -12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 15, delay: 0.65 }}
+            transition={{ type: "spring", stiffness: 260, damping: 15, delay: t(0.65) }}
           >
             <span className="text-base leading-none">{info.icono}</span>
             <span className="font-display text-xs tracking-wide" style={{ color: `var(${info.brightVar})` }}>
@@ -98,11 +102,11 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
             className="text-center font-display text-2xl leading-tight sm:text-3xl"
             style={{ color: `var(${info.brightVar})`, filter: `drop-shadow(0 0 18px color-mix(in srgb, var(${info.glowVar}) 60%, transparent))` }}
           >
-            <RevealWords texto={evento.nombre} delayStart={1.3} stagger={0.1} />
+            <RevealWords texto={evento.nombre} delayStart={t(1.3)} stagger={0.1 * ritmo} />
           </h2>
 
           <p className="max-w-xs text-center text-sm text-[color:var(--color-parchment)] sm:text-base">
-            <RevealWords texto={evento.descripcion} delayStart={2.05} stagger={0.032} />
+            <RevealWords texto={evento.descripcion} delayStart={t(2.05)} stagger={0.032 * ritmo} />
           </p>
 
           <motion.div
@@ -110,13 +114,13 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
             style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 45%, transparent)` }}
             initial={{ opacity: 0, scaleX: 0 }}
             animate={{ opacity: 1, scaleX: 1 }}
-            transition={{ duration: 0.5, delay: 2.9, ease: "easeOut" }}
+            transition={{ duration: 0.5, delay: t(2.9), ease: "easeOut" }}
           >
             <motion.p
               className="text-sm text-[color:var(--color-parchment)] sm:text-base"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 3.15, duration: 0.5 }}
+              transition={{ delay: t(3.15), duration: 0.5 }}
             >
               {evento.efecto}
             </motion.p>
@@ -129,7 +133,7 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
           style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 60%, transparent)`, color: `var(${info.brightVar})` }}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.6, 1, 0.6] }}
-          transition={{ opacity: { duration: 2.2, repeat: Infinity, delay: 3.9 } }}
+          transition={{ opacity: { duration: 2.2, repeat: Infinity, delay: t(3.9) } }}
           whileTap={{ scale: 0.95 }}
         >
           Continuar
@@ -141,11 +145,15 @@ function EventoRevelado({ evento, onContinuar }: { evento: EventoDef; onContinua
 }
 
 /* ================= 75% de las veces: no ocurre nada — portal en blanco y negro ================= */
-function NadaOcurreScreen({ onContinuar }: { onContinuar: () => void }) {
+function NadaOcurreScreen({ onCerrar }: { onCerrar: () => void }) {
+  const { ritmo } = useModoEvento("nada-ocurre", onCerrar, { duracionRapida: 2000 });
+  const t = (s: number) => s * ritmo;
+  const onContinuar = () => {
+    audioManager.playSfxBoton();
+    onCerrar();
+  };
   useEffect(() => {
     audioManager.playSfxNadaOcurre();
-    const t = setTimeout(() => audioManager.playNarracion("nada-ocurre"), 500);
-    return () => clearTimeout(t);
   }, []);
 
   return (
@@ -177,10 +185,10 @@ function NadaOcurreScreen({ onContinuar }: { onContinuar: () => void }) {
 
         <div className="flex flex-col items-center gap-3">
           <h2 className="text-center font-display text-xl text-white/85 sm:text-2xl">
-            <RevealWords texto="El Portal Guarda Silencio" delayStart={0.9} stagger={0.09} />
+            <RevealWords texto="El Portal Guarda Silencio" delayStart={t(0.9)} stagger={0.09 * ritmo} />
           </h2>
           <p className="max-w-xs text-center text-sm text-white/45 sm:text-base">
-            <RevealWords texto="Ningún augurio se manifiesta esta vez." delayStart={1.7} stagger={0.045} />
+            <RevealWords texto="Ningún augurio se manifiesta esta vez." delayStart={t(1.7)} stagger={0.045 * ritmo} />
           </p>
         </div>
 
@@ -190,7 +198,7 @@ function NadaOcurreScreen({ onContinuar }: { onContinuar: () => void }) {
           style={{ borderColor: "rgba(255,255,255,0.4)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ opacity: { duration: 2.2, repeat: Infinity, delay: 2.4 } }}
+          transition={{ opacity: { duration: 2.2, repeat: Infinity, delay: t(2.4) } }}
           whileTap={{ scale: 0.95 }}
         >
           Continuar

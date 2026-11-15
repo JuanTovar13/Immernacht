@@ -21,6 +21,7 @@ import {
 } from "../game/digital/engine";
 import { elegirAccion } from "../game/digital/bot";
 import { audioManager } from "../audio/audioManager";
+import { useAjustes } from "../game/ajustes";
 
 const RETRASO_IA = 850;
 
@@ -54,7 +55,9 @@ export function DigitalGameScreen() {
       setEventoVisible(false);
       return;
     }
-    const t = setTimeout(() => setEventoVisible(true), 1100);
+    // En modo rápido el evento aparece antes (todo dura menos de 3 s).
+    const espera = useAjustes.getState().modoEventos === "saltar" ? 600 : 1100;
+    const t = setTimeout(() => setEventoVisible(true), espera);
     return () => clearTimeout(t);
   }, [fase]);
 
@@ -80,8 +83,9 @@ export function DigitalGameScreen() {
   // Turnos de la máquina
   const jugador = partida ? jugadorActual(partida) : null;
   const esIA = jugador?.tipo === "ia";
+  const ajustesAbiertos = useAjustes((s) => s.panelAbierto);
   useEffect(() => {
-    if (!partida || !esIA || reglasAbiertas || salirAbierto) return;
+    if (!partida || !esIA || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
     if (partida.fase !== "tirar" && partida.fase !== "mover" && partida.fase !== "bono") return;
     const t = setTimeout(() => {
       const accion = elegirAccion(partida);
@@ -91,7 +95,7 @@ export function DigitalGameScreen() {
       else mover(accion.fichaId, accion.opcion);
     }, partida.fase === "tirar" ? RETRASO_IA : RETRASO_IA + 250);
     return () => clearTimeout(t);
-  }, [partida, esIA, reglasAbiertas, salirAbierto, tirar, sacar, mover]);
+  }, [partida, esIA, reglasAbiertas, salirAbierto, ajustesAbiertos, tirar, sacar, mover]);
 
   const movs = useMemo(() => (partida ? movimientosLegales(partida) : []), [partida]);
   const movibles = useMemo(() => (esIA ? new Set<string>() : new Set(movs.map((m) => m.fichaId))), [movs, esIA]);
@@ -100,10 +104,10 @@ export function DigitalGameScreen() {
   // Premio por comer: si solo una ficha puede usarlo, se mueve sola.
   const bonoUnico = partida?.fase === "bono" && !esIA && movs.length === 1 ? movs[0] : null;
   useEffect(() => {
-    if (!bonoUnico || reglasAbiertas || salirAbierto) return;
+    if (!bonoUnico || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
     const t = setTimeout(() => mover(bonoUnico.fichaId, bonoUnico.opcion), 900);
     return () => clearTimeout(t);
-  }, [bonoUnico, reglasAbiertas, salirAbierto, mover]);
+  }, [bonoUnico, reglasAbiertas, salirAbierto, ajustesAbiertos, mover]);
 
   // La crónica siempre muestra lo último que pasó.
   const cronicaRef = useRef<HTMLDivElement>(null);
@@ -193,8 +197,11 @@ export function DigitalGameScreen() {
       <StarField count={18} />
 
       <div className="relative flex h-full w-full flex-col landscape:flex-row">
-        {/* Tablero */}
-        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2 landscape:p-3" style={{ containerType: "size" }}>
+        {/* Tablero (en vertical deja libre la franja de arriba para los controles de la esquina) */}
+        <div
+          className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2 portrait:pt-14 landscape:p-3 sm:portrait:pt-[4.5rem]"
+          style={{ containerType: "size" }}
+        >
           <div style={{ width: "min(100cqw, 100cqh)", height: "min(100cqw, 100cqh)" }}>
             <Board
               fichas={partida.fichas}
@@ -216,7 +223,7 @@ export function DigitalGameScreen() {
         </div>
 
         {/* Panel de control */}
-        <div className="flex shrink-0 flex-col gap-3 px-4 pb-4 pt-1 landscape:w-80 landscape:justify-center landscape:py-4">
+        <div className="flex shrink-0 flex-col gap-3 px-4 pb-4 pt-1 landscape:w-80 landscape:justify-center landscape:pb-4 landscape:pt-16 sm:landscape:pt-20 lg:landscape:w-96">
           <div className="flex items-center justify-between gap-2">
             <motion.div
               key={`${partida.turno}`}
@@ -360,7 +367,7 @@ function BotonChico({ children, onClick }: { children: ReactNode; onClick: () =>
         audioManager.playSfxBoton();
         onClick();
       }}
-      className="rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)]"
+      className="rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
     >
       {children}
     </button>
