@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { OpenPortal } from "../components/OpenPortal";
 import { VictoryBurst } from "../components/VictoryBurst";
 import { RevealWords } from "../components/RevealWords";
@@ -26,6 +26,13 @@ export function FinalScreen() {
   const irA = useGameStore((s) => s.irA);
   const ganador = useGameStore((s) => s.ganador);
   const raza = ganador ? RAZAS[ganador] : null;
+
+  // El letrero de ¡VICTORIA! dura un momento y da paso a la tarjeta del ganador.
+  const [mostrarLetrero, setMostrarLetrero] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setMostrarLetrero(false), 2300);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     // Detiene cualquier música que estuviera sonando al entrar
@@ -58,35 +65,85 @@ export function FinalScreen() {
   };
 
   return (
-    <div
-      className="relative h-full w-full overflow-y-auto bg-noise"
-      style={{ background: "var(--color-void-deep)" }}
-    >
-      {/* Fondo dorado triunfal — el más luminoso de toda la app */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(140% 100% at 50% 30%, #3a2f16 0%, #1c1710 45%, var(--color-void-deep) 85%)",
-        }}
-      />
+    <div className="relative h-full w-full overflow-hidden bg-noise" style={{ background: "var(--color-void-deep)" }}>
+      {/* Capa de fondo con su propio recorte: las ondas del sol nunca agrandan
+          el área de scroll ni mueven la pantalla. */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Fondo dorado triunfal — el más luminoso de toda la app */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: "radial-gradient(140% 100% at 50% 30%, #3a2f16 0%, #1c1710 45%, var(--color-void-deep) 85%)",
+          }}
+        />
+        <VictoryBurst />
+        <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 160px 50px rgba(0,0,0,0.75)" }} />
+      </div>
 
-      <VictoryBurst />
-
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          boxShadow: "inset 0 0 160px 50px rgba(0,0,0,0.75)",
-        }}
-      />
-
+      <div className="absolute inset-0 overflow-y-auto overflow-x-hidden">
       <div className="relative flex min-h-full w-full flex-col items-center justify-center gap-8 px-6 py-10">
         <motion.div
+          className="relative flex items-center justify-center"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
         >
           <OpenPortal />
+
+          {/* Primero el letrero de ¡VICTORIA!, que da paso a la tarjeta del ganador */}
+          <AnimatePresence>
+            {mostrarLetrero && (
+              <motion.div
+                key="letrero"
+                className="pointer-events-none absolute inset-0 flex items-center justify-center"
+                initial={{ opacity: 0, scale: 0.4 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.6, filter: "blur(6px)" }}
+                transition={{ duration: 0.6, ease: "backOut" }}
+              >
+                <span
+                  className="whitespace-nowrap font-display text-5xl font-bold tracking-[0.08em] sm:text-6xl"
+                  style={{
+                    color: "#fffaf0",
+                    WebkitTextStroke: "1.5px #6b4a10",
+                    textShadow: "0 0 18px rgba(255,236,170,0.95), 0 0 42px rgba(232,196,104,0.85), 0 4px 0 #8a5d12",
+                  }}
+                >
+                  ¡VICTORIA!
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {raza && !mostrarLetrero && (
+            <motion.div
+              className="absolute flex w-52 flex-col items-center gap-1.5 rounded-lg border-2 px-5 py-5 sm:w-60"
+              style={{
+                borderColor: `var(${raza.colorVar})`,
+                background: "linear-gradient(180deg, rgba(20,16,10,0.88), rgba(8,8,16,0.92))",
+                boxShadow: `0 0 0 4px rgba(232,196,104,0.35), 0 0 38px color-mix(in srgb, var(${raza.colorVar}) 65%, transparent), 0 12px 30px rgba(0,0,0,0.6)`,
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+              }}
+              initial={{ opacity: 0, scale: 0.6, rotateX: 50 }}
+              animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+              transition={{ duration: 0.7, ease: "backOut" }}
+            >
+              <span className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-eclipse-gold)]">Victoria</span>
+              <motion.img
+                src={raza.logo}
+                alt={`Emblema de ${raza.nombre}`}
+                className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+                style={{ filter: `drop-shadow(0 0 14px color-mix(in srgb, var(${raza.colorVar}) 80%, transparent))` }}
+                animate={{ scale: [1, 1.05, 1] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <p className="text-center font-display text-2xl leading-tight tracking-wide" style={{ color: `var(${raza.colorVar})` }}>
+                {raza.nombre}
+              </p>
+              <p className="text-center text-xs text-[color:var(--color-parchment-dim)]">han abierto el Portal</p>
+            </motion.div>
+          )}
         </motion.div>
 
         <div className="flex flex-col items-center gap-3">
@@ -98,43 +155,16 @@ export function FinalScreen() {
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               color: "transparent",
-              filter:
-                "drop-shadow(0 2px 16px rgba(232,196,104,0.5))",
+              filter: "drop-shadow(0 2px 16px rgba(232,196,104,0.5))",
             }}
           >
-            <RevealWords
-              texto="El Portal se ha Abierto"
-              delayStart={1.9}
-              stagger={0.12}
-            />
+            <RevealWords texto="El Portal se ha Abierto" delayStart={3.1} stagger={0.12} />
           </h1>
-
-          {raza && (
-            <motion.div
-              className="flex flex-col items-center gap-2"
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.9, delay: 2.3 }}
-            >
-              <img
-                src={raza.logo}
-                alt={`Emblema de ${raza.nombre}`}
-                className="h-20 w-20 object-contain"
-                style={{ filter: `drop-shadow(0 0 12px color-mix(in srgb, var(${raza.colorVar}) 70%, transparent))` }}
-              />
-              <p
-                className="font-display text-lg tracking-wide"
-                style={{ color: `var(${raza.colorVar})` }}
-              >
-                Han ganado los {raza.nombre}
-              </p>
-            </motion.div>
-          )}
 
           <p className="max-w-md text-center text-sm text-[color:var(--color-parchment-dim)] sm:text-base">
             <RevealWords
               texto={raza ? TEXTO_VICTORIA[raza.id] : TEXTO_VICTORIA_GENERICO}
-              delayStart={2.7}
+              delayStart={3.8}
               stagger={0.05}
             />
           </p>
@@ -154,13 +184,14 @@ export function FinalScreen() {
             opacity: {
               duration: 2.2,
               repeat: Infinity,
-              delay: 4.6,
+              delay: 5.6,
             },
           }}
           whileTap={{ scale: 0.95 }}
         >
           Volver al Santuario
         </motion.button>
+      </div>
       </div>
     </div>
   );

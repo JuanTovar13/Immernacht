@@ -5,6 +5,8 @@ import { PreparationScreen } from "./screens/PreparationScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { EventRevealScreen } from "./screens/EventRevealScreen";
 import { FinalScreen } from "./screens/FinalScreen";
+import { DigitalSetupScreen } from "./screens/DigitalSetupScreen";
+import { DigitalGameScreen } from "./screens/DigitalGameScreen";
 
 function App() {
   const estado = useGameStore((s) => s.estado);
@@ -25,6 +27,8 @@ function App() {
           {estado === "partida" && <GameScreen />}
           {estado === "evento" && <EventRevealScreen />}
           {estado === "final" && <FinalScreen />}
+          {estado === "configDigital" && <DigitalSetupScreen />}
+          {estado === "digital" && <DigitalGameScreen />}
         </motion.div>
       </AnimatePresence>
     </div>

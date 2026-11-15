@@ -23,6 +23,11 @@ export function PreparationScreen() {
     irA("partida");
   };
 
+  const jugarDigital = () => {
+    audioManager.playSfxBoton();
+    irA("configDigital");
+  };
+
   const abrirHistoria = () => {
     audioManager.playSfxBoton();
     setHistoriaAbierta(true);
@@ -100,20 +105,37 @@ export function PreparationScreen() {
           ))}
         </div>
 
-        <motion.button
-          onClick={comenzarPartida}
-          className="relative overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-9 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]"
-          style={{
-            background: "linear-gradient(180deg, rgba(232,196,104,0.12) 0%, rgba(232,196,104,0.03) 100%)",
-            boxShadow: "0 0 24px rgba(232,196,104,0.15)",
-          }}
+        <motion.div
+          className="flex w-full max-w-xs flex-col items-stretch gap-3"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.3 }}
-          whileTap={{ scale: 0.95 }}
         >
-          Comenzar la partida
-        </motion.button>
+          <motion.button
+            onClick={comenzarPartida}
+            className="relative overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-6 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]"
+            style={{
+              background: "linear-gradient(180deg, rgba(232,196,104,0.12) 0%, rgba(232,196,104,0.03) 100%)",
+              boxShadow: "0 0 24px rgba(232,196,104,0.15)",
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Jugar con el tablero físico
+          </motion.button>
+          <motion.button
+            onClick={jugarDigital}
+            className="relative overflow-hidden rounded-sm border px-6 py-3 font-display text-sm tracking-wide"
+            style={{
+              borderColor: "color-mix(in srgb, var(--arcano-bright) 70%, transparent)",
+              color: "var(--arcano-glow)",
+              background: "linear-gradient(180deg, rgba(178,127,232,0.14) 0%, rgba(178,127,232,0.03) 100%)",
+              boxShadow: "0 0 24px rgba(178,127,232,0.15)",
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Versión digital
+          </motion.button>
+        </motion.div>
       </div>
       </div>
 
