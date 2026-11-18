@@ -387,7 +387,7 @@ function ReglasResumen() {
         <li>Si caes donde hay fichas rivales, las atacas y vuelven a su base, salvo en una Salida o Refugio. Al sacar una ficha te comes una ficha rival que esté en tu Salida.</li>
         <li>Cada ficha que comes te da un premio de 10 casillas para la ficha que elijas (no provoca eventos).</li>
         <li>Al terminar tu turno puede ocurrir un evento del Portal sobre tu última ficha movida. Nunca si no tienes fichas en el recorrido o si tienes alguna en tu carril final.</li>
-        <li>Un Derrumbe de Rocas tapa dos casillas durante 2 turnos: nadie puede entrar en ellas y las fichas atrapadas no se mueven. Si cae en tu Salida, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.</li>
+        <li>Un Derrumbe de Rocas tapa dos casillas durante 2 turnos: nadie puede entrar en ellas y las fichas atrapadas no se mueven (las razas con +1 en lo terrenal quedan atrapadas solo 1 turno y las inmunes no quedan atrapadas). Si cae en tu Salida, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.</li>
         <li>Gana quien ubique sus 4 fichas en las 4 casillas de su carril final.</li>
       </ul>
       <p className="mb-2 mt-4 text-xs tracking-wide text-[color:var(--color-muted)]">Matriz de efectos</p>

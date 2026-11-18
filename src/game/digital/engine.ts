@@ -59,7 +59,7 @@ export interface Ficha {
 /**
  * Casillas cubiertas por un Derrumbe de Rocas mientras dure el efecto:
  * nadie puede entrar en ellas y las fichas que estén ahí no pueden moverse
- * (salvo las inmunes o protegidas cuando cayeron las rocas).
+ * (salvo las inmunes o protegidas cuando cayeron las rocas; las de +1 solo 1 turno).
  */
 export interface Derrumbe {
   id: number;
@@ -68,6 +68,8 @@ export interface Derrumbe {
   turnos: number;
   /** Fichas que resistieron las rocas (inmunes o con Simbiosis) y pueden salir. */
   exentas: string[];
+  /** Fichas con +1 en lo terrenal: quedan atrapadas un turno menos. */
+  alivio?: string[];
 }
 
 export type Fase = "tirar" | "mover" | "bono" | "evento" | "fin";
@@ -188,16 +190,22 @@ function derrumbeEn(p: Partida, idx: number): Derrumbe | undefined {
   return p.derrumbes.find((d) => d.celdas.includes(idx));
 }
 
-/** ¿La ficha está atrapada bajo un derrumbe? Las inmunes a lo terrenal pueden salir. */
-function atrapada(p: Partida, f: Ficha): Derrumbe | undefined {
-  if (!enRecorrido(f) || MATRIZ_EFECTOS[f.raza].terrenal === "inmune") return undefined;
+/**
+ * Turnos que le quedan a la ficha atrapada bajo un derrumbe (0 = puede moverse).
+ * Las inmunes a lo terrenal pueden salir; las que tienen +1 quedan un turno menos.
+ */
+function turnosAtrapada(p: Partida, f: Ficha): number {
+  if (!enRecorrido(f) || MATRIZ_EFECTOS[f.raza].terrenal === "inmune") return 0;
   const d = derrumbeEn(p, loopIndex(f.raza, f.rel!));
-  return d && !d.exentas.includes(f.id) ? d : undefined;
+  if (!d || d.exentas.includes(f.id)) return 0;
+  return Math.max(0, d.turnos - (d.alivio?.includes(f.id) ? 1 : 0));
 }
+
+const atrapada = (p: Partida, f: Ficha) => turnosAtrapada(p, f) > 0;
 
 /** Recalcula el contador de bloqueo de cada ficha (para mostrarlo sobre la ficha). */
 function actualizarBloqueos(p: Partida) {
-  for (const f of p.fichas) f.bloqueo = atrapada(p, f)?.turnos ?? 0;
+  for (const f of p.fichas) f.bloqueo = turnosAtrapada(p, f);
 }
 
 const tirarDado = () => 1 + Math.floor(Math.random() * 6);
@@ -752,6 +760,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
     });
     // Las rocas no mueven fichas: la matriz decide quién queda atrapado.
     const exentas: string[] = [];
+    const alivio: string[] = [];
     for (const f of afectadas) {
       const e = efecto(f.raza);
       if (e === "inmune") {
@@ -762,14 +771,14 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
         exentas.push(f.id);
         lineas.push(`Las enredaderas protegen ${describir(f)} de la trampa.`);
       } else if (e === "positivo") {
-        exentas.push(f.id);
-        lineas.push(`${capital(describir(f))} esquiva las rocas a tiempo y puede seguir moviéndose.`);
+        alivio.push(f.id);
+        lineas.push(`${capital(describir(f))} queda atrapada bajo las rocas, pero solo durante 1 turno (+1).`);
       } else {
         lineas.push(`${capital(describir(f))} queda atrapada bajo las rocas durante 2 turnos.`);
       }
     }
     p.contador += 1;
-    p.derrumbes = [...p.derrumbes, { id: p.contador, celdas: [a, b], raza: j.raza, turnos: 2, exentas }];
+    p.derrumbes = [...p.derrumbes, { id: p.contador, celdas: [a, b], raza: j.raza, turnos: 2, exentas, alivio }];
     lineas.push("Nadie puede entrar en esas dos casillas mientras duren las rocas.");
     actualizarBloqueos(p);
     return lineas;
