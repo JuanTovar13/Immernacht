@@ -89,6 +89,31 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Cursor de mano en todo lo interactuable. Tailwind v4 deja los <button> con
+   el cursor por defecto, así que se restaura aquí de forma global. */
+@layer base {
+  button,
+  [role="button"],
+  a[href],
+  summary,
+  select,
+  label:has(input[type="range"], input[type="checkbox"], input[type="radio"]),
+  input[type="range"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="button"],
+  input[type="submit"] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"],
+  input:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
+
 /* Textura sutil de "pergamino nocturno" — grano fino, no una imagen pesada */
 .bg-noise {
   position: relative;
