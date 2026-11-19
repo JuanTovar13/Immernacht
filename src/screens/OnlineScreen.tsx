@@ -51,7 +51,20 @@ export function OnlineScreen() {
   };
 
   return (
-    <Fondo>
+    <Fondo
+      esquina={
+        <button
+          onClick={volver}
+          className="absolute left-3 top-3 z-40 flex h-9 items-center gap-1.5 rounded-sm border border-white/15 bg-black/30 px-3 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] backdrop-blur-sm transition-colors hover:text-[color:var(--color-parchment)] sm:left-5 sm:top-5 sm:h-11 sm:px-4 sm:text-sm"
+          aria-label={sala ? "Salir de la sala y volver al menú" : "Volver al menú"}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+          {sala ? "Salir" : "Menú"}
+        </button>
+      }
+    >
       {sala ? (
         <SalaDeEspera sala={sala} reconectando={conexion === "reconectando"} onSalir={volver} />
       ) : (
@@ -319,7 +332,7 @@ function AsientoCard({
   );
 }
 
-function Fondo({ children }: { children: ReactNode }) {
+function Fondo({ children, esquina }: { children: ReactNode; esquina?: ReactNode }) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-noise" style={{ background: "var(--color-void-deep)" }}>
       <div
@@ -331,6 +344,7 @@ function Fondo({ children }: { children: ReactNode }) {
       <div className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-none">
         <div className="relative mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-5 pb-10 pt-16">{children}</div>
       </div>
+      {esquina}
     </div>
   );
 }
