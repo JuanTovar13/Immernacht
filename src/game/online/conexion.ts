@@ -8,8 +8,16 @@ import type { RazaId } from "../types";
 import { useDigitalStore } from "../digital/store";
 import type { AccionJuego, MensajeCliente, MensajeServidor, VistaSala } from "./protocolo";
 
-/** Dirección del servidor (en Vercel se configura con VITE_SERVIDOR_ONLINE). */
-export const SERVIDOR = (import.meta.env.VITE_SERVIDOR_ONLINE as string | undefined)?.replace(/\/$/, "") ?? "http://localhost:8787";
+/** Servidor publicado en Cloudflare (ver server/README.md). */
+const SERVIDOR_PUBLICADO = "https://immernacht-online.immernacht.workers.dev";
+
+/**
+ * Dirección del servidor: en desarrollo el local (`npm run dev` en server/), en la app
+ * publicada el de Cloudflare. Se puede cambiar con la variable VITE_SERVIDOR_ONLINE.
+ */
+export const SERVIDOR =
+  (import.meta.env.VITE_SERVIDOR_ONLINE as string | undefined)?.replace(/\/$/, "") ??
+  (import.meta.env.DEV ? "http://localhost:8787" : SERVIDOR_PUBLICADO);
 
 const CLAVE_ID = "immernacht-jugador-id";
 const CLAVE_NOMBRE = "immernacht-nombre";

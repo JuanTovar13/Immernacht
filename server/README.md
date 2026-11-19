@@ -22,8 +22,8 @@ En otra terminal, en la raíz del proyecto, `npm run dev`. La app usa
 1. Crear una cuenta gratis en Cloudflare.
 2. En `server/`: `npx wrangler login` (abre el navegador para iniciar sesión) y luego `npm run deploy`.
 3. Wrangler muestra la dirección del servidor, algo como `https://immernacht-online.<tu-subdominio>.workers.dev`.
-4. En Vercel → Settings → Environment Variables, agregar `VITE_SERVIDOR_ONLINE` con esa dirección
-   y volver a desplegar la app.
+4. La app publicada ya usa `https://immernacht-online.immernacht.workers.dev` (en `src/game/online/conexion.ts`).
+   Si el servidor cambia de dirección, actualízala ahí o define `VITE_SERVIDOR_ONLINE` en Vercel.
 
 ## Cómo funciona
 
