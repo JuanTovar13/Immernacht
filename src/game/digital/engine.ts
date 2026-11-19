@@ -50,8 +50,8 @@ export interface Ficha {
   n: number;
   /** null = en la base; -4..71 = recorrido; 72..75 = carril final */
   rel: number | null;
-  /** Escudo de Luz o Camuflaje Silvestre: no puede ser comida hasta el próximo turno de su dueño. */
-  escudo: false | "luz" | "camuflaje";
+  /** Escudo de Luz o Tormenta de Arena: no puede ser comida hasta el próximo turno de su dueño. */
+  escudo: false | "luz" | "arena";
   /** Simbiosis de Enredaderas o Runa Guardiana: anula el primer ataque o trampa de la ronda. */
   proteccion: false | "enredaderas" | "runa";
   /** Derrumbe de Rocas: turnos de su dueño que le quedan inmovilizada. */
@@ -612,8 +612,9 @@ function terminarTurno(p: Partida): Partida {
     .filter((d) => d.turnos > 0);
   actualizarBloqueos(p);
 
-  // Sin fichas fuera de la base no hay evento, ni tampoco si tiene fichas en su carril final.
-  const puedeHaberEvento = tieneEnRecorrido(p, j.raza) && !fichasDe(p, j.raza).some(enMeta);
+  // Hay evento posible mientras tenga alguna ficha en el recorrido. Las del carril final
+  // están a salvo, pero no impiden que el Portal actúe sobre las demás.
+  const puedeHaberEvento = tieneEnRecorrido(p, j.raza);
   if (puedeHaberEvento && Math.random() < PROB_EVENTO) {
     const evento = elegirEvento(p);
     p.pesosEvento = actualizarPesos(p.pesosEvento, evento.id);
@@ -781,9 +782,17 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
     };
   }
 
-  const objetivo = p.fichas.find((f) => f.id === j.ultimaFicha);
-  if (!objetivo || !enRecorrido(objetivo)) {
-    return { resumen: "La última ficha movida ya no está en el recorrido: no pasa nada.", detalle };
+  // El evento cae sobre la última ficha movida; si ya no está en el recorrido (llegó al carril
+  // final o se la comieron), sobre su ficha más adelantada que siga en él.
+  const ultima = p.fichas.find((f) => f.id === j.ultimaFicha);
+  const objetivo =
+    ultima && enRecorrido(ultima)
+      ? ultima
+      : fichasDe(p, j.raza)
+          .filter(enRecorrido)
+          .sort((a, b) => b.rel! - a.rel!)[0];
+  if (!objetivo) {
+    return { resumen: "No tienes fichas en el recorrido: no pasa nada.", detalle };
   }
   const raza = objetivo.raza;
   const efectoPropio = efecto(raza);
@@ -864,8 +873,8 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
 
   switch (evento.id) {
     case "escudo-de-luz":
-    case "camuflaje-silvestre": {
-      objetivo.escudo = evento.id === "escudo-de-luz" ? "luz" : "camuflaje";
+    case "tormenta-de-arena": {
+      objetivo.escudo = evento.id === "escudo-de-luz" ? "luz" : "arena";
       desplazar(p, objetivo, mod);
       ajuste();
       return { resumen: `Nadie puede comer la ficha de ${los(raza)} hasta su próximo turno.`, detalle };
@@ -891,7 +900,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       return { resumen: `La ficha de ${los(raza)} cambia de lugar con ${conQuien}.`, detalle };
     }
     case "maldicion-de-polimorfia":
-    case "arenas-movedizas": {
+    case "pantano-de-lianas": {
       // Con el efecto a favor dura 1 turno en lugar de 2; en contra, además retrocede 1.
       const turnos = efectoPropio === "positivo" ? 1 : 2;
       j.maldicion = turnos;

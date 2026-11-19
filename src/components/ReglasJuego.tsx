@@ -19,7 +19,7 @@ export function ReglasJuego() {
         <li>Si caes donde hay fichas rivales, las atacas y vuelven a su base, salvo en una Salida o Refugio. Al sacar una ficha te comes una ficha rival que esté en tu Salida.</li>
         <li>Cada ficha que comes te da un premio de {BONO_CAPTURA} casillas para la ficha que elijas (no provoca eventos).</li>
         <li>La primera vez que una ficha llega a una de las 4 casillas de su carril final ganas un premio de {BONO_META} casillas. No cuenta la casilla de seguro de la entrada ni moverse dentro del carril.</li>
-        <li>Al terminar tu turno puede ocurrir un evento del Portal sobre tu última ficha movida. Nunca si no tienes fichas en el recorrido o si tienes alguna en tu carril final.</li>
+        <li>Al terminar tu turno puede ocurrir un evento del Portal sobre tu última ficha movida (si ya llegó al carril final, sobre tu ficha más adelantada del recorrido). Las fichas del carril final están a salvo de los eventos. No hay eventos si no tienes fichas en el recorrido.</li>
         <li>Un Derrumbe de Rocas o unas Cadenas Sagradas tapan dos casillas durante 2 turnos: nadie puede entrar en ellas y las fichas atrapadas no se mueven. Las inmunes no quedan atrapadas. Si cae en tu Salida, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.</li>
         <li>Los efectos que duran 2 turnos (quedar atrapado o tirar con los dados a la mitad) duran solo 1 si tu raza tiene el efecto a favor (+1).</li>
         <li>Gana quien ubique sus 4 fichas en las 4 casillas de su carril final.</li>

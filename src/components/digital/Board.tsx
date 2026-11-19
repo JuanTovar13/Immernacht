@@ -551,7 +551,7 @@ const FICHA_W = 41;
 /** Color del aura según el evento que dio la protección. */
 const COLOR_AURA = {
   luz: "#f4d58d", // Escudo de Luz
-  camuflaje: "#5e8a3a", // Camuflaje Silvestre (verde musgo)
+  arena: "#d39a55", // Tormenta de Arena (color arena)
   enredaderas: "#a6d67a", // Simbiosis de Enredaderas
   runa: "#b98cf0", // Runa Guardiana (violeta)
 } as const;

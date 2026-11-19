@@ -57,8 +57,8 @@ const volMusica = (conNarracion = narrando) =>
 
 /** Eventos nuevos sin sonido propio todavía: usan el del evento con efecto parecido. */
 const SFX_PROVISIONAL: Record<string, string> = {
-  "arenas-movedizas": "derrumbe-de-rocas",
-  "camuflaje-silvestre": "simbiosis-de-enredaderas",
+  "pantano-de-lianas": "simbiosis-de-enredaderas",
+  "tormenta-de-arena": "rafaga-huracanada",
   "estallido-runico": "intercambio-dimensional",
   "runa-guardiana": "escudo-de-luz",
   "tromba-de-agua": "rafaga-huracanada",
