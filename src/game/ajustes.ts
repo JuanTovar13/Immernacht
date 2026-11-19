@@ -12,7 +12,7 @@ export type ModoEventos = "normal" | "auto" | "saltar";
 
 export const MODOS_EVENTOS: { id: ModoEventos; nombre: string; detalle: string }[] = [
   { id: "normal", nombre: "Normal", detalle: "Pulsa Continuar para cerrar cada evento." },
-  { id: "auto", nombre: "Automático", detalle: "El evento se cierra al terminar la voz del narrador." },
+  { id: "auto", nombre: "Automático", detalle: "El evento se cierra solo al terminar la voz del narrador, o tras unos segundos si no hay voz." },
   { id: "saltar", nombre: "Rápido", detalle: "El evento se ve un instante, sin narrador." },
 ];
 

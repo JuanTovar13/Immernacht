@@ -24,7 +24,9 @@ export const PROB_EVENTO = 0.35;
 /** Valor que hay que sacar (en un dado o en la suma) para sacar una ficha de la base. */
 export const VALOR_SALIDA = 5;
 /** Casillas que avanza el premio por comer una ficha. */
-export const BONO_CAPTURA = 10;
+export const BONO_CAPTURA = 20;
+/** Casillas de premio la primera vez que una ficha entra a una de las 4 casillas del carril final. */
+export const BONO_META = 10;
 /** Máximo de fichas en una misma casilla del recorrido. */
 export const MAX_POR_CASILLA = 2;
 /** Cada vez que un evento sale, su peso se multiplica por este factor durante los 3 eventos siguientes. */
@@ -48,10 +50,10 @@ export interface Ficha {
   n: number;
   /** null = en la base; -4..71 = recorrido; 72..75 = carril final */
   rel: number | null;
-  /** Escudo de Luz: no puede ser comida hasta el próximo turno de su dueño. */
-  escudo: boolean;
-  /** Simbiosis de Enredaderas: anula el primer ataque o trampa de la ronda. */
-  proteccion: boolean;
+  /** Escudo de Luz o Camuflaje Silvestre: no puede ser comida hasta el próximo turno de su dueño. */
+  escudo: false | "luz" | "camuflaje";
+  /** Simbiosis de Enredaderas o Runa Guardiana: anula el primer ataque o trampa de la ronda. */
+  proteccion: false | "enredaderas" | "runa";
   /** Derrumbe de Rocas: turnos de su dueño que le quedan inmovilizada. */
   bloqueo: number;
 }
@@ -63,11 +65,21 @@ export interface Ficha {
  */
 export interface Derrumbe {
   id: number;
+  /** Qué tapa las casillas: rocas (Derrumbe de Rocas) o luz (Cadenas Sagradas). Las reglas son las mismas. */
+  tipo: "rocas" | "cadenas";
   celdas: number[];
   raza: RazaId;
   turnos: number;
   /** Fichas que resistieron las rocas (inmunes o con Simbiosis) y pueden salir. */
   exentas: string[];
+  /** Fichas con efecto a favor (+1): quedan atrapadas solo 1 turno en lugar de 2. */
+  cortas: string[];
+}
+
+/** Premio de movimiento pendiente: 20 casillas por comer, 10 por llegar al carril final. */
+export interface Premio {
+  valor: number;
+  motivo: "captura" | "meta";
 }
 
 export type Fase = "tirar" | "mover" | "bono" | "evento" | "fin";
@@ -77,7 +89,7 @@ interface EfectoPendiente {
   fichas: Ficha[];
   jugadores: Jugador[];
   derrumbes: Derrumbe[];
-  bonos: number;
+  bonos: Premio[];
   log: EntradaLog[];
   contador: number;
 }
@@ -109,8 +121,8 @@ export interface Partida {
   fichaLiberada: string | null;
   /** Lanzamientos que quedan en este turno (3 si no tiene fichas en el recorrido). */
   intentos: number;
-  /** Movimientos de 10 casillas pendientes por haber comido fichas. */
-  bonos: number;
+  /** Premios de movimiento pendientes (se usan en orden). */
+  bonos: Premio[];
   /** Qué hacer al terminar los bonos: seguir con los dados o pasar el turno (bono ganado en un evento). */
   trasBono: "continuar" | "avanzar";
   eventoActual: ResultadoEvento | null;
@@ -147,6 +159,7 @@ function clonar(p: Partida): Partida {
     fichas: p.fichas.map((f) => ({ ...f })),
     usados: [...p.usados] as [boolean, boolean],
     derrumbes: p.derrumbes.map((d) => ({ ...d })),
+    bonos: p.bonos.map((b) => ({ ...b })),
     log: [...p.log],
   };
 }
@@ -188,16 +201,32 @@ function derrumbeEn(p: Partida, idx: number): Derrumbe | undefined {
   return p.derrumbes.find((d) => d.celdas.includes(idx));
 }
 
-/** ¿La ficha está atrapada bajo un derrumbe? Las inmunes a lo terrenal pueden salir. */
+/** Elemento de cada bloqueo: las razas inmunes a ese elemento pueden salir. */
+const ELEMENTO_BLOQUEO = { rocas: "terrenal", cadenas: "celestial" } as const;
+
+/** ¿La ficha está atrapada bajo un derrumbe o unas cadenas? Las inmunes a su elemento pueden salir. */
 function atrapada(p: Partida, f: Ficha): Derrumbe | undefined {
-  if (!enRecorrido(f) || MATRIZ_EFECTOS[f.raza].terrenal === "inmune") return undefined;
-  const d = derrumbeEn(p, loopIndex(f.raza, f.rel!));
-  return d && !d.exentas.includes(f.id) ? d : undefined;
+  if (!enRecorrido(f)) return undefined;
+  const idx = loopIndex(f.raza, f.rel!);
+  // Puede haber rocas y cadenas en la misma casilla: basta con que una la retenga.
+  return p.derrumbes.find((d) => {
+    if (!d.celdas.includes(idx) || d.exentas.includes(f.id)) return false;
+    if (MATRIZ_EFECTOS[f.raza][ELEMENTO_BLOQUEO[d.tipo]] === "inmune") return false;
+    // Con el efecto a favor solo queda atrapada el primer turno.
+    return !(d.cortas.includes(f.id) && d.turnos < 2);
+  });
+}
+
+/** Turnos que le quedan atrapada a una ficha (0 si está libre). */
+function turnosAtrapada(p: Partida, f: Ficha): number {
+  const d = atrapada(p, f);
+  if (!d) return 0;
+  return d.cortas.includes(f.id) ? d.turnos - 1 : d.turnos;
 }
 
 /** Recalcula el contador de bloqueo de cada ficha (para mostrarlo sobre la ficha). */
 function actualizarBloqueos(p: Partida) {
-  for (const f of p.fichas) f.bloqueo = atrapada(p, f)?.turnos ?? 0;
+  for (const f of p.fichas) f.bloqueo = turnosAtrapada(p, f);
 }
 
 const tirarDado = () => 1 + Math.floor(Math.random() * 6);
@@ -231,7 +260,7 @@ export function crearPartida(jugadores: { raza: RazaId; tipo: TipoJugador }[]): 
     esPar: false,
     fichaLiberada: null,
     intentos: 3,
-    bonos: 0,
+    bonos: [],
     trasBono: "continuar",
     eventoActual: null,
     derrumbes: [],
@@ -346,15 +375,22 @@ export function salidaBloqueada(p: Partida): boolean {
   return fichasDe(p, raza).some((f) => f.rel === null) && opcionSalida(p) !== null && !salidaLibre(p, raza);
 }
 
+/** Premio que se está usando ahora (el primero de la cola). */
+export function premioActual(p: Partida): Premio | null {
+  return p.fase === "bono" ? (p.bonos[0] ?? null) : null;
+}
+
 function movimientosBono(p: Partida): Movimiento[] {
   const raza = jugadorActual(p).raza;
+  const premio = p.bonos[0];
   const res: Movimiento[] = [];
+  if (!premio) return res;
   for (const f of fichasDe(p, raza)) {
     if (f.rel === null || atrapada(p, f)) continue;
-    const destino = f.rel + BONO_CAPTURA;
+    const destino = f.rel + premio.valor;
     if (!destinoValido(p, f, destino)) continue;
     const capturas = destino <= REL_ENTRADA ? capturasPosibles(p, raza, loopIndex(raza, destino)) : 0;
-    res.push({ fichaId: f.id, opcion: "bono", valor: BONO_CAPTURA, destino, capturas });
+    res.push({ fichaId: f.id, opcion: "bono", valor: premio.valor, destino, capturas });
   }
   return res;
 }
@@ -478,7 +514,7 @@ export function sacarFicha(prev: Partida): Partida {
   if (victima) {
     devolverABase(victima);
     registrar(p, `¡Al salir, los ${nombre(j.raza)} se comen una ficha de los ${nombre(victima.raza)}!`, j.raza);
-    p.bonos += 1;
+    p.bonos.push({ valor: BONO_CAPTURA, motivo: "captura" });
     return entrarBono(p, "continuar");
   }
   return continuar(p);
@@ -490,9 +526,10 @@ export function mover(prev: Partida, fichaId: string, opcion: OpcionDado): Parti
   const p = clonar(prev);
   const j = jugadorActual(p);
   const f = p.fichas.find((x) => x.id === fichaId)!;
+  const origen = f.rel!;
   f.rel = mov.destino;
   const esBono = opcion === "bono";
-  if (esBono) p.bonos -= 1;
+  if (esBono) p.bonos.shift();
   else if (opcion === "suma") p.usados = [true, true];
   else p.usados[opcion] = true;
   // El premio por comer no cuenta como "última ficha movida" (no dispara eventos).
@@ -501,40 +538,45 @@ export function mover(prev: Partida, fichaId: string, opcion: OpcionDado): Parti
   let comidas = 0;
   if (mov.destino <= REL_ENTRADA) {
     comidas = atacar(p, j.raza, loopIndex(j.raza, mov.destino));
-  } else {
+  } else if (origen < REL_META_INI) {
     registrar(p, `Una ficha de los ${nombre(j.raza)} entra al carril del Portal.`, j.raza);
   }
-  if (esBono) registrar(p, `Premio: una ficha de los ${nombre(j.raza)} avanza ${BONO_CAPTURA} casillas.`, j.raza);
+  if (esBono) registrar(p, `Premio: una ficha de los ${nombre(j.raza)} avanza ${mov.valor} casillas.`, j.raza);
 
   if (fichasDe(p, j.raza).every(enMeta)) {
     p.ganador = j.raza;
     p.fase = "fin";
-    p.bonos = 0;
+    p.bonos = [];
     registrar(p, `¡Las cuatro voluntades de los ${nombre(j.raza)} resuenan en el Portal!`, j.raza);
     return p;
   }
 
-  p.bonos += comidas;
-  if (p.bonos > 0) return entrarBono(p, esBono ? p.trasBono : "continuar");
+  for (let i = 0; i < comidas; i++) p.bonos.push({ valor: BONO_CAPTURA, motivo: "captura" });
+  // Premio de llegada: solo la primera vez que entra a una de las 4 casillas finales.
+  if (origen < REL_META_INI && mov.destino >= REL_META_INI) {
+    p.bonos.push({ valor: BONO_META, motivo: "meta" });
+    registrar(p, `¡Una ficha de los ${nombre(j.raza)} llega al carril final! Premio de ${BONO_META} casillas.`, j.raza);
+  }
+  if (p.bonos.length) return entrarBono(p, esBono ? p.trasBono : "continuar");
   if (esBono) return salirBono(p);
   return continuar(p);
 }
 
-/** Abre la fase de premio (10 casillas). Si ninguna ficha puede usarlo, se pierde. */
+/** Abre la fase de premio. Si ninguna ficha puede usar un premio, ese premio se pierde. */
 function entrarBono(p: Partida, tras: "continuar" | "avanzar"): Partida {
   p.trasBono = tras;
   p.fase = "bono";
-  if (movimientosBono(p).length === 0) {
-    avisar(p, `Ninguna ficha puede avanzar ${BONO_CAPTURA} casillas: el premio se pierde.`);
-    p.bonos = 0;
-    return salirBono(p);
+  while (p.bonos.length && movimientosBono(p).length === 0) {
+    const perdido = p.bonos.shift()!;
+    avisar(p, `Ninguna ficha puede avanzar ${perdido.valor} casillas: el premio se pierde.`);
   }
-  avisar(p, `¡Premio! Mueve una ficha ${BONO_CAPTURA} casillas.`);
+  if (!p.bonos.length) return salirBono(p);
+  avisar(p, `¡Premio! Mueve una ficha ${p.bonos[0].valor} casillas.`);
   return p;
 }
 
 function salirBono(p: Partida): Partida {
-  p.bonos = 0;
+  p.bonos = [];
   p.fase = "mover";
   if (p.trasBono === "avanzar") return avanzarTurno(p);
   return continuar(p);
@@ -575,7 +617,7 @@ function terminarTurno(p: Partida): Partida {
     registrar(p, `Evento del Portal: ${evento.nombre}.`, j.raza);
     // El efecto se calcula ahora, pero se aplica al pulsar "Continuar" para que se vea.
     const q = clonar(p);
-    q.bonos = 0;
+    q.bonos = [];
     const lineas = resolverEvento(q, evento, jugadorActual(q));
     actualizarBloqueos(q);
     p.eventoActual = {
@@ -601,8 +643,8 @@ export function cerrarEvento(prev: Partida): Partida {
   p.log = [...res.log];
   p.contador = Math.max(p.contador, res.contador);
   p.eventoActual = null;
-  if (res.bonos > 0) {
-    p.bonos = res.bonos;
+  if (res.bonos.length) {
+    p.bonos = res.bonos.map((b) => ({ ...b }));
     return entrarBono(p, "avanzar");
   }
   return avanzarTurno(p);
@@ -622,7 +664,7 @@ function avanzarTurno(p: Partida): Partida {
   p.usados = [false, false];
   p.esPar = false;
   p.fichaLiberada = null;
-  p.bonos = 0;
+  p.bonos = [];
   p.trasBono = "continuar";
   p.intentos = intentosIniciales(p, j.raza);
   return p;
@@ -700,21 +742,34 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
   const enTablero = p.fichas.filter(enRecorrido);
 
   // Juicio Divino no depende de la última ficha movida.
-  if (evento.id === "juicio-divino") {
+  if (evento.id === "juicio-divino" || evento.id === "estampida") {
+    const estampida = evento.id === "estampida";
     const candidatas = enTablero.filter((f) => efecto(f.raza) !== "inmune");
     if (candidatas.length < 2) {
-      lineas.push("No hay suficientes fichas en el recorrido: la balanza queda quieta.");
+      lineas.push(
+        estampida
+          ? "No hay suficientes fichas en el recorrido: la manada pasa de largo."
+          : "No hay suficientes fichas en el recorrido: la balanza queda quieta."
+      );
       return lineas;
     }
     const orden = [...candidatas].sort((a, b) => b.rel! - a.rel! || Math.random() - 0.5);
     const primera = orden[0];
     const ultima = orden[orden.length - 1];
     desplazar(p, primera, -3 + MOD[efecto(primera.raza)]);
-    lineas.push(`La ficha más adelantada (${nombre(primera.raza)}) retrocede 3 casillas${coletilla(primera.raza)}.`);
+    lineas.push(
+      estampida
+        ? `La ficha más adelantada (${nombre(primera.raza)}) choca con la manada y retrocede 3 casillas${coletilla(primera.raza)}.`
+        : `La ficha más adelantada (${nombre(primera.raza)}) retrocede 3 casillas${coletilla(primera.raza)}.`
+    );
     desplazar(p, ultima, 3 + MOD[efecto(ultima.raza)]);
-    lineas.push(`La ficha más rezagada (${nombre(ultima.raza)}) avanza 3 casillas${coletilla(ultima.raza)}.`);
+    lineas.push(
+      estampida
+        ? `La ficha más rezagada (${nombre(ultima.raza)}) es arrastrada por la manada y avanza 3 casillas${coletilla(ultima.raza)}.`
+        : `La ficha más rezagada (${nombre(ultima.raza)}) avanza 3 casillas${coletilla(ultima.raza)}.`
+    );
     const inmunes = enTablero.filter((f) => efecto(f.raza) === "inmune");
-    if (inmunes.length) lineas.push(`Los ${nombre(inmunes[0].raza)} son inmunes a los eventos celestiales.`);
+    if (inmunes.length) lineas.push(`Los ${nombre(inmunes[0].raza)} son inmunes a los eventos de tipo ${tipo}.`);
     return lineas;
   }
 
@@ -727,23 +782,30 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
   const efectoPropio = efecto(raza);
 
   // Eventos de área: la matriz se aplica a cada ficha según su raza.
-  if (evento.id === "rafaga-huracanada") {
+  if (evento.id === "rafaga-huracanada" || evento.id === "himno-de-los-angeles") {
+    const himno = evento.id === "himno-de-los-angeles";
     const centro = loopIndex(raza, objetivo.rel!);
     const afectadas = enTablero
       .filter((f) => distanciaCircular(loopIndex(f.raza, f.rel!), centro) <= 2)
       .sort((a, b) => b.rel! - a.rel!); // las de adelante primero, para que haya sitio
     for (const f of afectadas) {
       if (efecto(f.raza) === "inmune") {
-        lineas.push(`${capital(describir(f))} es inmune y resiste el viento.`);
+        lineas.push(himno ? `${capital(describir(f))} es inmune y no se deja llevar por el canto.` : `${capital(describir(f))} es inmune y resiste el viento.`);
         continue;
       }
       desplazar(p, f, 3 + MOD[efecto(f.raza)]);
-      lineas.push(`${capital(describir(f))} es empujada 3 casillas hacia adelante${coletilla(f.raza)}.`);
+      lineas.push(
+        himno
+          ? `El himno guía ${describir(f)} 3 casillas hacia adelante${coletilla(f.raza)}.`
+          : `${capital(describir(f))} es empujada 3 casillas hacia adelante${coletilla(f.raza)}.`
+      );
     }
     return lineas;
   }
 
-  if (evento.id === "derrumbe-de-rocas") {
+  if (evento.id === "derrumbe-de-rocas" || evento.id === "cadenas-sagradas") {
+    const tipoBloqueo = evento.id === "cadenas-sagradas" ? "cadenas" : "rocas";
+    const bajo = tipoBloqueo === "cadenas" ? "encadenada por la luz" : "atrapada bajo las rocas";
     const a = loopIndex(raza, objetivo.rel!);
     const b = (a + 1) % LOOP;
     const afectadas = enTablero.filter((f) => {
@@ -752,25 +814,27 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
     });
     // Las rocas no mueven fichas: la matriz decide quién queda atrapado.
     const exentas: string[] = [];
+    const cortas: string[] = [];
     for (const f of afectadas) {
       const e = efecto(f.raza);
       if (e === "inmune") {
         exentas.push(f.id);
-        lineas.push(`${capital(describir(f))} es inmune: las rocas no la alcanzan.`);
+        lineas.push(`${capital(describir(f))} es inmune: ${tipoBloqueo === "cadenas" ? "las cadenas no la atan" : "las rocas no la alcanzan"}.`);
       } else if (f.proteccion) {
+        const quien = f.proteccion === "runa" ? "La runa guardiana protege" : "Las enredaderas protegen";
         f.proteccion = false;
         exentas.push(f.id);
-        lineas.push(`Las enredaderas protegen ${describir(f)} de la trampa.`);
+        lineas.push(`${quien} ${describir(f)} de la trampa.`);
       } else if (e === "positivo") {
-        exentas.push(f.id);
-        lineas.push(`${capital(describir(f))} esquiva las rocas a tiempo y puede seguir moviéndose.`);
+        cortas.push(f.id);
+        lineas.push(`${capital(describir(f))} se protege de lo peor (+1): queda ${bajo} solo 1 turno.`);
       } else {
-        lineas.push(`${capital(describir(f))} queda atrapada bajo las rocas durante 2 turnos.`);
+        lineas.push(`${capital(describir(f))} queda ${bajo} durante 2 turnos.`);
       }
     }
     p.contador += 1;
-    p.derrumbes = [...p.derrumbes, { id: p.contador, celdas: [a, b], raza: j.raza, turnos: 2, exentas }];
-    lineas.push("Nadie puede entrar en esas dos casillas mientras duren las rocas.");
+    p.derrumbes = [...p.derrumbes, { id: p.contador, tipo: tipoBloqueo, celdas: [a, b], raza: j.raza, turnos: 2, exentas, cortas }];
+    lineas.push(`Nadie puede entrar en esas dos casillas mientras duren ${tipoBloqueo === "cadenas" ? "las cadenas" : "las rocas"}.`);
     actualizarBloqueos(p);
     return lineas;
   }
@@ -784,15 +848,23 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
 
   switch (evento.id) {
     case "escudo-de-luz": {
-      objetivo.escudo = true;
+      objetivo.escudo = "luz";
       desplazar(p, objetivo, mod);
       lineas.push(`Un aura protege ${describir(objetivo)} hasta su próximo turno${coletilla(raza)}.`);
       break;
     }
-    case "intercambio-dimensional": {
+    case "camuflaje-silvestre": {
+      objetivo.escudo = "camuflaje";
+      desplazar(p, objetivo, mod);
+      lineas.push(`El follaje oculta ${describir(objetivo)}: nadie puede comerla hasta su próximo turno${coletilla(raza)}.`);
+      break;
+    }
+    case "intercambio-dimensional":
+    case "tromba-de-agua": {
+      const tromba = evento.id === "tromba-de-agua";
       const idx = loopIndex(raza, objetivo.rel!);
       if (derrumbeEn(p, idx)) {
-        lineas.push("Las rocas sujetan la ficha: el hechizo no puede moverla.");
+        lineas.push(`La ficha está atrapada: ${tromba ? "el agua" : "el hechizo"} no puede moverla.`);
         break;
       }
       const cercanas = enTablero
@@ -801,7 +873,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
         .filter(({ d }) => d >= 1 && d <= 5)
         .sort((a, b) => a.d - b.d || Math.random() - 0.5);
       if (!cercanas.length) {
-        lineas.push("No hay ninguna ficha a 5 casillas o menos: el hechizo no surte efecto.");
+        lineas.push(`No hay ninguna ficha a 5 casillas o menos: ${tromba ? "el agua baja sin arrastrar a nadie" : "el hechizo no surte efecto"}.`);
         break;
       }
       const otra = cercanas[0].f;
@@ -809,7 +881,11 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
       otra.rel = relDesdeLoop(otra.raza, idx);
       objetivo.rel = relDesdeLoop(raza, idxOtra);
       desplazar(p, objetivo, mod);
-      lineas.push(`${capital(describir(objetivo))} intercambia su lugar con ${describir(otra)}${coletilla(raza)}.`);
+      lineas.push(
+        tromba
+          ? `El agua arrastra ${describir(objetivo)} y ${describir(otra)}: cada una queda donde estaba la otra${coletilla(raza)}.`
+          : `${capital(describir(objetivo))} intercambia su lugar con ${describir(otra)}${coletilla(raza)}.`
+      );
       break;
     }
     case "maldicion-de-polimorfia": {
@@ -818,25 +894,47 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): string[] {
       lineas.push(`Los ${nombre(raza)} se convierten en sapo: sus próximas 2 tiradas valen la mitad${coletilla(raza)}.`);
       break;
     }
-    case "ataque-de-bestia": {
+    case "arenas-movedizas": {
+      j.maldicion = 2;
+      desplazar(p, objetivo, mod);
+      lineas.push(`Los ${nombre(raza)} se hunden en la arena: sus próximas 2 tiradas valen la mitad${coletilla(raza)}.`);
+      break;
+    }
+    case "ataque-de-bestia":
+    case "estallido-runico": {
+      const bestia = evento.id === "ataque-de-bestia";
       if (objetivo.proteccion) {
         objetivo.proteccion = false;
-        lineas.push(`La protección mágica detiene a la bestia: ${describir(objetivo)} no se mueve.`);
+        lineas.push(
+          bestia
+            ? `La protección mágica detiene a la bestia: ${describir(objetivo)} no se mueve.`
+            : `La protección absorbe la explosión: ${describir(objetivo)} no se mueve.`
+        );
         break;
       }
       desplazar(p, objetivo, -5 + mod);
-      lineas.push(`La bestia empuja ${describir(objetivo)} 5 casillas hacia atrás${coletilla(raza)}.`);
+      lineas.push(
+        bestia
+          ? `La bestia empuja ${describir(objetivo)} 5 casillas hacia atrás${coletilla(raza)}.`
+          : `La explosión lanza ${describir(objetivo)} 5 casillas hacia atrás${coletilla(raza)}.`
+      );
       const comidas = atacar(p, raza, loopIndex(raza, objetivo.rel!));
       if (comidas) {
-        p.bonos += comidas;
+        for (let i = 0; i < comidas; i++) p.bonos.push({ valor: BONO_CAPTURA, motivo: "captura" });
         lineas.push(`¡Al caer, se come ${comidas === 1 ? "una ficha" : `${comidas} fichas`}! Ganas un premio de ${BONO_CAPTURA} casillas.`);
       }
       break;
     }
     case "simbiosis-de-enredaderas": {
       desplazar(p, objetivo, 3 + mod);
-      objetivo.proteccion = true;
+      objetivo.proteccion = "enredaderas";
       lineas.push(`Las enredaderas impulsan ${describir(objetivo)} 3 casillas${coletilla(raza)} y la protegen esta ronda.`);
+      break;
+    }
+    case "runa-guardiana": {
+      desplazar(p, objetivo, 3 + mod);
+      objetivo.proteccion = "runa";
+      lineas.push(`Una runa impulsa ${describir(objetivo)} 3 casillas${coletilla(raza)} y la protege esta ronda.`);
       break;
     }
   }

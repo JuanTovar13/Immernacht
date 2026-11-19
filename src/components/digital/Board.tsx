@@ -128,7 +128,11 @@ export function Board(props: BoardProps) {
 
       {/* Derrumbes de Rocas: casillas afectadas */}
       <AnimatePresence>
-        {derrumbes.flatMap((d) => d.celdas.map((idx) => <Rocas key={`${d.id}-${idx}`} idx={idx} />))}
+        {derrumbes.flatMap((d) =>
+          d.celdas.map((idx) =>
+            d.tipo === "cadenas" ? <Cadenas key={`${d.id}-${idx}`} idx={idx} /> : <Rocas key={`${d.id}-${idx}`} idx={idx} />
+          )
+        )}
       </AnimatePresence>
 
       {/* Fichas */}
@@ -275,10 +279,67 @@ function Rocas({ idx }: { idx: number }) {
           />
         );
       })}
-      <g transform={`translate(${c.x + 14} ${c.y - 14})`}>
-        <circle r={8} fill="#b3261e" stroke="#fff" strokeWidth={1.6} />
-        <rect x={-4.5} y={-1.4} width={9} height={2.8} rx={1} fill="#fff" />
+      <Prohibido x={c.x + 14} y={c.y - 14} />
+    </motion.g>
+  );
+}
+
+/** Señal de prohibido el paso (compartida por rocas y cadenas). */
+function Prohibido({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <circle r={8} fill="#b3261e" stroke="#fff" strokeWidth={1.6} />
+      <rect x={-4.5} y={-1.4} width={9} height={2.8} rx={1} fill="#fff" />
+    </g>
+  );
+}
+
+/** Cadenas de luz sobre una casilla afectada por Cadenas Sagradas. */
+function Cadenas({ idx }: { idx: number }) {
+  const poly = poligonoLoop(idx);
+  const c = centroLoop(idx);
+  // La cadena cruza la casilla a lo largo de su lado más largo.
+  const l1 = Math.hypot(poly[1].x - poly[0].x, poly[1].y - poly[0].y);
+  const l2 = Math.hypot(poly[2].x - poly[1].x, poly[2].y - poly[1].y);
+  const [a, b] = l1 >= l2 ? [poly[0], poly[1]] : [poly[1], poly[2]];
+  const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+  const eslabones = [-30, -18, -6, 6, 18, 30];
+  return (
+    <motion.g
+      initial={{ opacity: 0, scale: 1.15 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.45, ease: "easeOut" }}
+      style={{ pointerEvents: "none", transformOrigin: `${c.x}px ${c.y}px` }}
+    >
+      <defs>
+        <clipPath id={`cadenas-${idx}`}>
+          <polygon points={pts(poly)} />
+        </clipPath>
+      </defs>
+      <polygon points={pts(poly)} fill="#f4d58d" fillOpacity={0.28} stroke="#fff3c4" strokeWidth={2} strokeDasharray="6 4" />
+      {/* Recortada a la casilla para que no se salga en las casillas triangulares */}
+      <g clipPath={`url(#cadenas-${idx})`}>
+        <g transform={`translate(${c.x} ${c.y}) rotate(${ang})`}>
+          {[10, -10].map((dy) => (
+            <g key={dy} transform={`translate(0 ${dy})`}>
+              {eslabones.map((dx, i) => (
+                <ellipse
+                  key={i}
+                  cx={dx}
+                  cy={0}
+                  rx={i % 2 ? 6.5 : 7}
+                  ry={i % 2 ? 2.2 : 4}
+                  fill="none"
+                  stroke="#e8c468"
+                  strokeWidth={2.4}
+                />
+              ))}
+            </g>
+          ))}
+        </g>
       </g>
+      <Prohibido x={c.x + 14} y={c.y - 14} />
     </motion.g>
   );
 }
@@ -487,6 +548,14 @@ const ICONO_FICHA: Record<RazaId, { src: string; centro: Punto }> = {
 const FICHA_W = 41;
 
 /** Aura de una ficha protegida: halo suave + anillo punteado que gira, por fuera del ícono. */
+/** Color del aura según el evento que dio la protección. */
+const COLOR_AURA = {
+  luz: "#f4d58d", // Escudo de Luz
+  camuflaje: "#5e8a3a", // Camuflaje Silvestre (verde musgo)
+  enredaderas: "#a6d67a", // Simbiosis de Enredaderas
+  runa: "#b98cf0", // Runa Guardiana (violeta)
+} as const;
+
 function AuraProteccion({ color, r }: { color: string; r: number }) {
   return (
     <g style={{ pointerEvents: "none" }}>
@@ -571,8 +640,8 @@ function FichaToken({
       <motion.g animate={{ scale: seleccionada ? 1.18 : 1 }} transition={{ type: "spring", stiffness: 300, damping: 18 }}>
         {/* Escudo de Luz (dorado) y Simbiosis de Enredaderas (verde) usan la misma aura,
             detrás del ícono; si la ficha tiene las dos, la verde va un poco más afuera. */}
-        {ficha.proteccion && <AuraProteccion color="#8fbf6a" r={ficha.escudo ? 28.5 : 24} />}
-        {ficha.escudo && <AuraProteccion color="#f4d58d" r={24} />}
+        {ficha.proteccion && <AuraProteccion color={COLOR_AURA[ficha.proteccion]} r={ficha.escudo ? 28.5 : 24} />}
+        {ficha.escudo && <AuraProteccion color={COLOR_AURA[ficha.escudo]} r={24} />}
         <ellipse cx={0} cy={15} rx={14} ry={4.5} fill="#000" opacity={0.4} />
         <image
           href={ICONO_FICHA[ficha.raza].src}

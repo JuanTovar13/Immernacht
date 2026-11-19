@@ -3,9 +3,18 @@ import { audioManager } from "../audio/audioManager";
 import { useAjustes, type ModoEventos } from "./ajustes";
 
 /**
+ * Narración de los eventos desactivada mientras se graban las voces de los eventos nuevos.
+ * Para volver a activarla, cambia esto a true.
+ */
+export const NARRAR_EVENTOS = false;
+/** Sin narración, el modo automático cierra el evento tras este tiempo de lectura. */
+const LECTURA_AUTO = 7000;
+
+/**
  * Reproduce la narración de un evento y lo cierra solo según el modo elegido:
  * - normal: solo narra; se cierra con "Continuar".
- * - auto: narra y se cierra poco después de que termine la voz.
+ * - auto: narra y se cierra poco después de que termine la voz
+ *   (sin narración, se cierra tras un tiempo de lectura).
  * - saltar: no narra y se cierra a los `duracionRapida` ms.
  *
  * El modo se fija al abrir el evento (cambiarlo a mitad de un evento aplica al siguiente).
@@ -30,6 +39,8 @@ export function useModoEvento(
     };
     if (modo === "saltar") {
       timers.push(setTimeout(fin, duracionRapida));
+    } else if (!NARRAR_EVENTOS) {
+      if (modo === "auto") timers.push(setTimeout(fin, LECTURA_AUTO));
     } else {
       timers.push(
         setTimeout(() => {

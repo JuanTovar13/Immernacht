@@ -109,3 +109,20 @@ body {
     transition-duration: 0.001ms !important;
   }
 }
+/* Tailwind v4 deja los botones con el cursor de flecha: todo lo que se puede
+   pulsar muestra la mano, y lo deshabilitado muestra que no está disponible. */
+@layer base {
+  button:not(:disabled),
+  [role="button"],
+  a[href],
+  select,
+  summary,
+  input[type="range"],
+  input[type="checkbox"],
+  input[type="radio"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}

@@ -12,9 +12,11 @@ import { useDigitalStore } from "../game/digital/store";
 import { COLOR_TABLERO, REL_META_INI } from "../game/digital/board";
 import {
   BONO_CAPTURA,
+  BONO_META,
   fichasDe,
   jugadorActual,
   movimientosLegales,
+  premioActual,
   puedeSacar,
   salidaBloqueada,
   type Movimiento,
@@ -175,11 +177,14 @@ export function DigitalGameScreen() {
     else if (seleccion) pista = "Elige a qué casilla moverla (el número es lo que avanza).";
     else pista = "Toca una ficha brillante para moverla.";
   } else if (partida.fase === "bono") {
+    const premio = premioActual(partida);
+    const motivo = premio?.motivo === "meta" ? "¡Premio por llegar al carril final!" : "¡Premio por comer!";
+    const valor = premio?.valor ?? BONO_CAPTURA;
     pista = esIA
       ? "La máquina cobra su premio…"
       : bonoUnico
-        ? `¡Premio por comer! Tu ficha avanza ${BONO_CAPTURA} casillas.`
-        : `¡Premio por comer! Toca la ficha que quieres avanzar ${BONO_CAPTURA} casillas.`;
+        ? `${motivo} Tu ficha avanza ${valor} casillas.`
+        : `${motivo} Toca la ficha que quieres avanzar ${valor} casillas.`;
   } else if (partida.fase === "evento") pista = "El Portal se agita…";
 
   const dadosMostrados = partida.dados
@@ -385,9 +390,10 @@ function ReglasResumen() {
         <li>Mueve una ficha con la suma de los dados, o dos fichas con un dado cada una. Con pares vuelves a lanzar.</li>
         <li>Máximo 2 fichas por casilla. Si tu Salida está llena, mueve primero con el otro dado y luego saca con el 5.</li>
         <li>Si caes donde hay fichas rivales, las atacas y vuelven a su base, salvo en una Salida o Refugio. Al sacar una ficha te comes una ficha rival que esté en tu Salida.</li>
-        <li>Cada ficha que comes te da un premio de 10 casillas para la ficha que elijas (no provoca eventos).</li>
+        <li>Cada ficha que comes te da un premio de {BONO_CAPTURA} casillas para la ficha que elijas (no provoca eventos).</li>
+        <li>La primera vez que una ficha llega a una de las 4 casillas de su carril final ganas un premio de {BONO_META} casillas. No cuenta la casilla de seguro de la entrada ni moverse dentro del carril.</li>
         <li>Al terminar tu turno puede ocurrir un evento del Portal sobre tu última ficha movida. Nunca si no tienes fichas en el recorrido o si tienes alguna en tu carril final.</li>
-        <li>Un Derrumbe de Rocas tapa dos casillas durante 2 turnos: nadie puede entrar en ellas y las fichas atrapadas no se mueven. Si cae en tu Salida, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.</li>
+        <li>Un Derrumbe de Rocas o unas Cadenas Sagradas tapan dos casillas durante 2 turnos: nadie puede entrar en ellas y las fichas atrapadas no se mueven. Las razas con efecto a favor (+1) quedan atrapadas solo 1 turno y las inmunes no quedan atrapadas. Si cae en tu Salida, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.</li>
         <li>Gana quien ubique sus 4 fichas en las 4 casillas de su carril final.</li>
       </ul>
       <p className="mb-2 mt-4 text-xs tracking-wide text-[color:var(--color-muted)]">Matriz de efectos</p>

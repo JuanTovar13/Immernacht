@@ -55,6 +55,18 @@ let narrando = false;
 const volMusica = (conNarracion = narrando) =>
   volumenMusicaBase * canal.musica * (conNarracion ? PROPORCION_CON_NARRACION : 1);
 
+/** Eventos nuevos sin sonido propio todavía: usan el del evento con efecto parecido. */
+const SFX_PROVISIONAL: Record<string, string> = {
+  "arenas-movedizas": "derrumbe-de-rocas",
+  "camuflaje-silvestre": "simbiosis-de-enredaderas",
+  "estallido-runico": "intercambio-dimensional",
+  "runa-guardiana": "escudo-de-luz",
+  "tromba-de-agua": "rafaga-huracanada",
+  "himno-de-los-angeles": "juicio-divino",
+  "cadenas-sagradas": "escudo-de-luz",
+  estampida: "ataque-de-bestia",
+};
+
 const SFX_TIPO: Record<TipoEvento, string> = {
   celestial: "/audio/sfx/tipos/celestial-reveal.mp3",
   natural: "/audio/sfx/tipos/natural-reveal.mp3",
@@ -179,7 +191,8 @@ export const audioManager = {
   /** Sonido de la ACCIÓN concreta de ESE evento (no del tipo) — ej. el rugido
    *  del lobo en "Ataque de Bestia", el crujido de rocas en "Derrumbe de Rocas". */
   playSfxEvento(eventoId: string) {
-    playSfxRastreado(`/audio/sfx/eventos/${eventoId}.mp3`, 0.7);
+    const archivo = SFX_PROVISIONAL[eventoId] ?? eventoId;
+    playSfxRastreado(`/audio/sfx/eventos/${archivo}.mp3`, 0.7);
   },
 
   /** Corta los sonidos de la pantalla de evento que sigan sonando (llamar al presionar "Continuar"). */
