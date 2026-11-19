@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { StarField } from "../components/StarField";
 import { InfoModal } from "../components/InfoModal";
 import { Board } from "../components/digital/Board";
@@ -21,7 +21,8 @@ import {
 } from "../game/digital/engine";
 import { elegirAccion } from "../game/digital/bot";
 import { audioManager } from "../audio/audioManager";
-import { useAjustes } from "../game/ajustes";
+import { MODOS_EVENTOS, useAjustes } from "../game/ajustes";
+import { ETIQUETA_MODO, IconoModo } from "../components/ControlesAjustes";
 import { useOnline } from "../game/online/conexion";
 
 const RETRASO_IA = 850;
@@ -267,6 +268,7 @@ export function DigitalGameScreen() {
               </div>
             </motion.div>
             <div className="flex shrink-0 gap-1.5">
+              <BotonModoChico />
               <BotonChico onClick={() => abrirReglas(true)}>Reglas</BotonChico>
               <BotonChico onClick={() => setSalirAbierto(true)}>Salir</BotonChico>
             </div>
@@ -390,14 +392,47 @@ export function DigitalGameScreen() {
   );
 }
 
-function BotonChico({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+/** Cambia el modo de los eventos (Normal → Auto → Rápido), junto a Reglas y Salir. */
+function BotonModoChico() {
+  const modo = useAjustes((s) => s.modoEventos);
+  const siguiente = useAjustes((s) => s.siguienteModo);
+  const info = MODOS_EVENTOS.find((m) => m.id === modo)!;
+  return (
+    <BotonChico
+      onClick={siguiente}
+      style={modo !== "normal" ? { color: "var(--color-eclipse-gold)", borderColor: "color-mix(in srgb, var(--color-eclipse-gold) 50%, transparent)" } : undefined}
+      etiqueta={`Modo de eventos: ${info.nombre}. ${info.detalle} Toca para cambiar.`}
+      titulo={`Eventos: ${info.nombre} — ${info.detalle}`}
+    >
+      <IconoModo modo={modo} />
+      {ETIQUETA_MODO[modo]}
+    </BotonChico>
+  );
+}
+
+function BotonChico({
+  children,
+  onClick,
+  style,
+  etiqueta,
+  titulo,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  style?: CSSProperties;
+  etiqueta?: string;
+  titulo?: string;
+}) {
   return (
     <button
       onClick={() => {
         audioManager.playSfxBoton();
         onClick();
       }}
-      className="rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
+      style={style}
+      aria-label={etiqueta}
+      title={titulo}
+      className="flex items-center gap-1 rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
     >
       {children}
     </button>
