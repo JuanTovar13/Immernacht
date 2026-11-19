@@ -4,6 +4,7 @@ import { StarField } from "../components/StarField";
 import { SanctuaryScene } from "../components/SanctuaryScene";
 import { EclipseEmblem } from "../components/EclipseEmblem";
 import { ParticleField } from "../components/ParticleField";
+import { BotonInstalar } from "../components/BotonInstalar";
 import { useGameStore } from "../game/store";
 import { audioManager } from "../audio/audioManager";
 
@@ -102,10 +103,12 @@ export function IntroScreen() {
           Solo una noche en el siglo se abre el Portal del Eclipse en el Santuario Atávico.
         </motion.p>
 
+        {/* El espacio del botón está reservado desde el inicio para que nada salte al aparecer. */}
+        <div className="mt-10 flex h-12 items-center justify-center">
         {listo && (
           <motion.button
             onClick={comenzar}
-            className="relative mt-10 overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-9 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]"
+            className="relative overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-9 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]"
             style={{
               background:
                 "linear-gradient(180deg, rgba(232,196,104,0.12) 0%, rgba(232,196,104,0.03) 100%)",
@@ -119,6 +122,12 @@ export function IntroScreen() {
             Tocar para comenzar
           </motion.button>
         )}
+        </div>
+
+        {/* Visible desde que se entra: se puede instalar sin esperar la animación del título. */}
+        <div className="mt-6">
+          <BotonInstalar />
+        </div>
       </div>
       </div>
     </div>

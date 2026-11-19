@@ -6,7 +6,6 @@ import { RuneCircle } from "../components/RuneCircle";
 import { RaceTotem } from "../components/RaceTotem";
 import { Brazier } from "../components/Brazier";
 import { InfoModal } from "../components/InfoModal";
-import { BotonInstalar } from "../components/BotonInstalar";
 import { RAZAS, ORDEN_RAZAS, MATRIZ_EFECTOS, TIPOS_EVENTO, type RazaId } from "../game/types";
 import { HISTORIA_JUEGO, RAZA_DESCRIPCION, EFECTO_INFO } from "../game/lore";
 import { useGameStore } from "../game/store";
@@ -167,7 +166,6 @@ export function PreparationScreen() {
           >
             Jugar en línea
           </motion.button>
-          <BotonInstalar />
         </motion.div>
       </div>
       </div>
