@@ -92,7 +92,9 @@ export function PreparationScreen() {
       />
 
       <div className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-none">
-      <div className="relative flex min-h-full w-full flex-col items-center justify-between px-6 py-10">
+      {/* Todo agrupado al centro con huecos fijos (antes se repartía hasta los bordes en celulares altos).
+          Arriba deja sitio a los botones de la esquina. */}
+      <div className="relative flex min-h-full w-full flex-col items-center justify-center gap-8 px-6 pb-8 pt-16 sm:gap-10">
         <motion.div
           className="text-center"
           initial={{ opacity: 0, y: -8 }}
@@ -118,7 +120,7 @@ export function PreparationScreen() {
           </motion.button>
         </motion.div>
 
-        <div className="grid grid-cols-2 gap-x-10 gap-y-10 sm:flex sm:gap-14">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:gap-12">
           {ORDEN_RAZAS.map((id, i) => (
             <RaceTotem key={id} raza={RAZAS[id]} index={i} onClick={() => abrirRaza(id)} />
           ))}
