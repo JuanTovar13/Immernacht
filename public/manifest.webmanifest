@@ -1,0 +1,20 @@
+{
+  "name": "Immernacht: El Reino de la Noche Eterna",
+  "short_name": "Immernacht",
+  "description": "Juego de mesa de fantasía para 2 a 4 jugadores: lleva tus cuatro fichas al Portal del Eclipse.",
+  "lang": "es",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#050710",
+  "theme_color": "#0a0d18",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/iconos/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/iconos/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
