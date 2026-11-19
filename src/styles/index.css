@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Pantalla de PC: horizontal y con espacio de sobra (no celulares en horizontal). */
+@custom-variant pc (@media (orientation: landscape) and (min-width: 1024px) and (min-height: 560px));
+
 @import "@fontsource/cinzel/500.css";
 @import "@fontsource/cinzel/600.css";
 @import "@fontsource/cinzel-decorative/400.css";

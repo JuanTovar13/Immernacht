@@ -142,11 +142,15 @@ export function BotonModo() {
 export function ControlesFlotantes({ conModo, conReglas = true }: { conModo: boolean; conReglas?: boolean }) {
   return (
     <div className="pointer-events-none absolute right-3 top-3 z-40 flex sm:right-5 sm:top-5">
-      <div className="pointer-events-auto flex gap-1.5 sm:gap-2">
+      {/* En PC el botón de velocidad baja a una segunda fila para no ocupar el ancho del panel;
+          en celular (donde no sobra alto) todo va en una sola fila. */}
+      <div className="pointer-events-auto flex flex-row-reverse items-start gap-1.5 sm:gap-2 pc:flex-col pc:items-end">
+        <div className="flex gap-1.5 sm:gap-2">
+          {conReglas && <BotonReglas />}
+          <BotonSilencio />
+          <BotonAjustes />
+        </div>
         {conModo && <BotonModo />}
-        {conReglas && <BotonReglas />}
-        <BotonSilencio />
-        <BotonAjustes />
       </div>
     </div>
   );

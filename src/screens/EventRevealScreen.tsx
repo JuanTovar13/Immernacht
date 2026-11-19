@@ -8,6 +8,7 @@ import { TIPOS_EVENTO, type EventoDef } from "../game/types";
 import { useGameStore } from "../game/store";
 import { audioManager } from "../audio/audioManager";
 import { useModoEvento } from "../game/useModoEvento";
+import { useTeclaContinuar } from "../game/useTeclaContinuar";
 
 export function EventRevealScreen() {
   const evento = useGameStore((s) => s.eventoActual);
@@ -39,6 +40,7 @@ function EventoRevelado({ evento, onCerrar }: { evento: EventoDef; onCerrar: () 
     audioManager.playSfxBoton();
     onCerrar();
   };
+  useTeclaContinuar(onContinuar);
 
   useEffect(() => {
     audioManager.playSfxRevelacion(evento.tipo);
@@ -49,6 +51,7 @@ function EventoRevelado({ evento, onCerrar }: { evento: EventoDef; onCerrar: () 
 
   return (
     <motion.div
+      data-tarjeta-evento
       className="relative h-full w-full overflow-hidden bg-noise"
       style={{ background: "var(--color-void-deep)" }}
       animate={esTerrenal ? { opacity: 1, scale: 1, x: [0, -6, 5, -4, 3, 0], y: [0, 4, -3, 2, 0] } : { opacity: 1, scale: 1 }}
@@ -152,12 +155,14 @@ function NadaOcurreScreen({ onCerrar }: { onCerrar: () => void }) {
     audioManager.playSfxBoton();
     onCerrar();
   };
+  useTeclaContinuar(onContinuar);
   useEffect(() => {
     audioManager.playSfxNadaOcurre();
   }, []);
 
   return (
     <motion.div
+      data-tarjeta-evento
       className="relative h-full w-full overflow-hidden"
       style={{ background: "#000000", filter: "grayscale(1) contrast(1.05)" }}
       initial={{ opacity: 0 }}

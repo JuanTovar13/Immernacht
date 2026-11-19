@@ -7,6 +7,7 @@ import { EFECTO_INFO } from "../../game/lore";
 import type { ResultadoEvento } from "../../game/digital/engine";
 import { audioManager } from "../../audio/audioManager";
 import { useModoEvento } from "../../game/useModoEvento";
+import { useTeclaContinuar } from "../../game/useTeclaContinuar";
 
 /** Revelación de un evento del Portal dentro de la partida digital. */
 export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoEvento; onContinuar: () => void }) {
@@ -43,10 +44,12 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
     audioManager.playSfxBoton();
     cerrar();
   };
+  useTeclaContinuar(continuar);
 
   return (
     <motion.div
       className="absolute inset-0 z-40 overflow-hidden"
+      data-tarjeta-evento
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -123,7 +126,11 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
                 <div className="flex flex-col items-center">
                   <button
                     type="button"
-                    onClick={() => setDetalleAbierto((v) => !v)}
+                    onClick={(e) => {
+                      setDetalleAbierto((v) => !v);
+                      // Tras un clic con el ratón suelta el foco, para que Espacio/Enter sigan sirviendo para continuar.
+                      if (e.detail > 0) e.currentTarget.blur();
+                    }}
                     aria-expanded={detalleAbierto}
                     className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-[color:var(--color-parchment-dim)] transition-colors hover:text-[color:var(--color-parchment)]"
                     style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 30%, transparent)` }}
