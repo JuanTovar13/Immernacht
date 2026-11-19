@@ -42,7 +42,7 @@ function App() {
 
       {/* Sonido, modo de eventos y ajustes: siempre en la esquina superior derecha */}
       {/* En la partida digital las reglas ya tienen su botón en la cabecera. */}
-      <ControlesFlotantes conModo={estado === "partida" || estado === "evento" || estado === "digital"} conReglas={estado !== "digital"} />
+      <ControlesFlotantes conModo={estado === "partida" || estado === "evento"} conReglas={estado !== "digital"} />
       <PanelAjustes />
       <PanelReglas />
     </div>

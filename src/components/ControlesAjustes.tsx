@@ -40,7 +40,7 @@ function IconoLibro() {
   );
 }
 
-function IconoModo({ modo }: { modo: ModoEventos }) {
+export function IconoModo({ modo }: { modo: ModoEventos }) {
   return (
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" aria-hidden>
       {modo === "normal" && <path d="M7 5h3v14H7zM14 5h3v14h-3z" opacity={0.9} />}
@@ -50,7 +50,7 @@ function IconoModo({ modo }: { modo: ModoEventos }) {
   );
 }
 
-const ETIQUETA_MODO: Record<ModoEventos, string> = { normal: "Normal", auto: "Auto", saltar: "Rápido" };
+export const ETIQUETA_MODO: Record<ModoEventos, string> = { normal: "Normal", auto: "Auto", saltar: "Rápido" };
 
 /* ---------------- Botones ---------------- */
 
