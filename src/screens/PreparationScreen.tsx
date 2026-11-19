@@ -42,6 +42,11 @@ export function PreparationScreen() {
     irA("configDigital");
   };
 
+  const jugarEnLinea = () => {
+    audioManager.playSfxBoton();
+    irA("online");
+  };
+
   const abrirHistoria = () => {
     audioManager.playSfxBoton();
     setHistoriaAbierta(true);
@@ -149,6 +154,18 @@ export function PreparationScreen() {
               Comenzar a jugar
             </motion.button>
           )}
+          <motion.button
+            onClick={jugarEnLinea}
+            className="relative overflow-hidden rounded-sm border px-6 py-3 font-display text-sm tracking-wide"
+            style={{
+              borderColor: "color-mix(in srgb, var(--arcano-bright) 70%, transparent)",
+              color: "var(--arcano-glow)",
+              background: "linear-gradient(180deg, rgba(178,127,232,0.14) 0%, rgba(178,127,232,0.03) 100%)",
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Jugar en línea
+          </motion.button>
         </motion.div>
       </div>
       </div>

@@ -22,12 +22,14 @@ import {
 import { elegirAccion } from "../game/digital/bot";
 import { audioManager } from "../audio/audioManager";
 import { useAjustes } from "../game/ajustes";
+import { useOnline } from "../game/online/conexion";
 
 const RETRASO_IA = 850;
 
 export function DigitalGameScreen() {
   const partida = useDigitalStore((s) => s.partida);
-  const { tirar, sacar, mover, cerrarEvento, abandonar } = useDigitalStore();
+  const { tirar, sacar, mover, cerrarEvento, abandonar, modo, misRazas, nombres } = useDigitalStore();
+  const enLinea = modo === "online";
   const irA = useGameStore((s) => s.irA);
   const partidaTerminada = useGameStore((s) => s.partidaTerminada);
 
@@ -35,15 +37,20 @@ export function DigitalGameScreen() {
   const [eventoVisible, setEventoVisible] = useState(false);
   const [salirAbierto, setSalirAbierto] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  /** En línea: evento que este jugador ya cerró en su pantalla (lo cierra de verdad quien tiene el turno). */
+  const [eventoOculto, setEventoOculto] = useState<number | null>(null);
 
   useEffect(() => {
     audioManager.playMusicaAmbiental("/audio/musica/partida-loop.mp3", 0.3);
   }, []);
 
   // Sin partida (p. ej. al recargar) → volver a la configuración.
+  // Solo al abrir la pantalla: al salir a propósito la partida también queda vacía
+  // mientras la pantalla se desvanece, y eso no debe cambiar a dónde se va.
   useEffect(() => {
-    if (!partida) irA("configDigital");
-  }, [partida, irA]);
+    if (!useDigitalStore.getState().partida) irA(useDigitalStore.getState().modo === "online" ? "online" : "configDigital");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fase = partida?.fase;
   const turnoIdx = partida?.turno;
@@ -64,9 +71,13 @@ export function DigitalGameScreen() {
   useEffect(() => {
     if (fase !== "fin" || !partida?.ganador) return;
     const g = partida.ganador;
-    const t = setTimeout(() => partidaTerminada(g), 1800);
+    const t = setTimeout(() => {
+      partidaTerminada(g);
+      // En línea la sala ya no hace falta.
+      if (enLinea) useOnline.getState().salir();
+    }, 1800);
     return () => clearTimeout(t);
-  }, [fase, partida?.ganador, partidaTerminada]);
+  }, [fase, partida?.ganador, partidaTerminada, enLinea]);
 
   // Avisos breves
   useEffect(() => {
@@ -82,11 +93,16 @@ export function DigitalGameScreen() {
   // Turnos de la máquina
   const jugador = partida ? jugadorActual(partida) : null;
   const esIA = jugador?.tipo === "ia";
+  /** ¿Este dispositivo controla el turno actual? (en local, cualquier jugador humano) */
+  const esMio = !enLinea || (!!jugador && misRazas.includes(jugador.raza));
+  const puedoJugar = !esIA && esMio;
+  const nombreTurno = jugador ? (nombres[jugador.raza] ?? "Jugador") : "";
   const ajustesAbiertos = useAjustes((s) => s.panelAbierto);
   const reglasAbiertas = useAjustes((s) => s.reglasAbiertas);
   const abrirReglas = useAjustes((s) => s.abrirReglas);
   useEffect(() => {
-    if (!partida || !esIA || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
+    // En línea las máquinas las mueve el servidor.
+    if (!partida || !esIA || enLinea || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
     if (partida.fase !== "tirar" && partida.fase !== "mover" && partida.fase !== "bono") return;
     const t = setTimeout(() => {
       const accion = elegirAccion(partida);
@@ -96,14 +112,14 @@ export function DigitalGameScreen() {
       else mover(accion.fichaId, accion.opcion);
     }, partida.fase === "tirar" ? RETRASO_IA : RETRASO_IA + 250);
     return () => clearTimeout(t);
-  }, [partida, esIA, reglasAbiertas, salirAbierto, ajustesAbiertos, tirar, sacar, mover]);
+  }, [partida, esIA, enLinea, reglasAbiertas, salirAbierto, ajustesAbiertos, tirar, sacar, mover]);
 
   const movs = useMemo(() => (partida ? movimientosLegales(partida) : []), [partida]);
-  const movibles = useMemo(() => (esIA ? new Set<string>() : new Set(movs.map((m) => m.fichaId))), [movs, esIA]);
-  const sacarDisponible = !!partida && !esIA && puedeSacar(partida);
+  const movibles = useMemo(() => (puedoJugar ? new Set(movs.map((m) => m.fichaId)) : new Set<string>()), [movs, puedoJugar]);
+  const sacarDisponible = !!partida && puedoJugar && puedeSacar(partida);
 
   // Premio por comer: si solo una ficha puede usarlo, se mueve sola.
-  const bonoUnico = partida?.fase === "bono" && !esIA && movs.length === 1 ? movs[0] : null;
+  const bonoUnico = partida?.fase === "bono" && puedoJugar && movs.length === 1 ? movs[0] : null;
   useEffect(() => {
     if (!bonoUnico || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
     const t = setTimeout(() => mover(bonoUnico.fichaId, bonoUnico.opcion), 900);
@@ -131,7 +147,7 @@ export function DigitalGameScreen() {
   };
 
   const onFicha = (id: string) => {
-    if (esIA) return;
+    if (!puedoJugar) return;
     const f = partida.fichas.find((x) => x.id === id);
     if (!f) return;
     if (f.rel === null && f.raza === raza && sacarDisponible) {
@@ -157,12 +173,15 @@ export function DigitalGameScreen() {
 
   const confirmarSalida = () => {
     audioManager.playSfxBoton();
-    abandonar();
+    if (enLinea) useOnline.getState().salir();
+    else abandonar();
     irA("inicio");
   };
 
   let pista = "";
-  if (partida.fase === "tirar") {
+  if (!esIA && !esMio && partida.fase !== "evento" && partida.fase !== "fin") {
+    pista = `Esperando a ${nombreTurno}…`;
+  } else if (partida.fase === "tirar") {
     pista = esIA
       ? "La máquina está lanzando…"
       : !fichasDe(partida, raza).some((f) => f.rel !== null && f.rel < REL_META_INI)
@@ -242,7 +261,7 @@ export function DigitalGameScreen() {
                   {RAZAS[raza].nombre}
                 </p>
                 <p className="text-[11px] text-[color:var(--color-muted)]">
-                  {esIA ? "🤖 Máquina" : "👤 Jugador"}
+                  {esIA ? "🤖 Máquina" : enLinea ? `👤 ${nombreTurno}${esMio ? " (tú)" : ""}` : "👤 Jugador"}
                   {jugador.maldicion > 0 && ` · 🐸 Sapo (${jugador.maldicion})`}
                 </p>
               </div>
@@ -270,7 +289,7 @@ export function DigitalGameScreen() {
               ))}
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-2">
-              {partida.fase === "tirar" && !esIA ? (
+              {partida.fase === "tirar" && puedoJugar ? (
                 <motion.button
                   onClick={lanzar}
                   className="rounded-sm border px-4 py-2.5 font-display text-sm tracking-wide"
@@ -341,15 +360,25 @@ export function DigitalGameScreen() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {eventoVisible && partida.eventoActual && (
-          <EventOverlay key={partida.contador} resultado={partida.eventoActual} onContinuar={cerrarEvento} />
+        {eventoVisible && partida.eventoActual && eventoOculto !== partida.contador && (
+          <EventOverlay
+            key={partida.contador}
+            resultado={partida.eventoActual}
+            onContinuar={() => {
+              // En línea solo quien tiene el turno cierra el evento para todos; los demás lo ocultan en su pantalla.
+              if (enLinea && !puedoJugar) setEventoOculto(partida.contador);
+              else cerrarEvento();
+            }}
+          />
         )}
       </AnimatePresence>
 
 
       <InfoModal open={salirAbierto} onClose={() => setSalirAbierto(false)}>
         <h3 className="mb-3 text-center font-display text-lg text-[color:var(--color-eclipse-gold)]">¿Abandonar la partida?</h3>
-        <p className="text-center text-sm text-[color:var(--color-parchment-dim)]">Se perderá el progreso de esta partida.</p>
+        <p className="text-center text-sm text-[color:var(--color-parchment-dim)]">
+          {enLinea ? "Saldrás de la sala y una máquina jugará por ti." : "Se perderá el progreso de esta partida."}
+        </p>
         <button
           onClick={confirmarSalida}
           className="mt-5 w-full rounded-sm border border-red-400/50 px-4 py-2 font-display text-xs tracking-wide text-red-300"

@@ -1,0 +1,15 @@
+{
+  // Servidor de salas en línea de Immernacht (Cloudflare Workers + Durable Objects).
+  // Desarrollo:  npm run dev     (http://localhost:8787)
+  // Publicar:    npm run deploy  (pide iniciar sesión en Cloudflare la primera vez)
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "immernacht-online",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "durable_objects": {
+    "bindings": [{ "name": "SALAS", "class_name": "Sala" }]
+  },
+  // El plan gratis necesita Durable Objects con almacenamiento SQLite.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }],
+  "observability": { "enabled": true }
+}

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { EVENTOS, ORDEN_RAZAS, type EventoDef, type RazaId } from "./types";
  
 /** "configDigital" y "digital" son la versión puramente digital (sin tablero físico). */
-export type EstadoApp = "inicio" | "preparacion" | "partida" | "evento" | "final" | "configDigital" | "digital";
+export type EstadoApp = "inicio" | "preparacion" | "partida" | "evento" | "final" | "configDigital" | "digital" | "online";
  
 interface GameState {
   estado: EstadoApp;
