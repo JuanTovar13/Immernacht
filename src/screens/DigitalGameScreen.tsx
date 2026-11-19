@@ -267,10 +267,14 @@ export function DigitalGameScreen() {
                 </p>
               </div>
             </motion.div>
-            <div className="flex shrink-0 gap-1.5">
-              <BotonModoChico />
+            {/* Reglas y Salir arriba, la velocidad de los eventos debajo y a lo ancho:
+                así le queda espacio al nombre de la raza de turno. */}
+            <div className="grid shrink-0 grid-cols-2 gap-1.5">
               <BotonChico onClick={() => abrirReglas(true)}>Reglas</BotonChico>
               <BotonChico onClick={() => setSalirAbierto(true)}>Salir</BotonChico>
+              <div className="col-span-2 grid">
+                <BotonModoChico />
+              </div>
             </div>
           </div>
 
@@ -432,7 +436,7 @@ function BotonChico({
       style={style}
       aria-label={etiqueta}
       title={titulo}
-      className="flex items-center gap-1 rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
+      className="flex items-center justify-center gap-1 rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
     >
       {children}
     </button>
