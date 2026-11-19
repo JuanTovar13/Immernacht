@@ -186,24 +186,24 @@ export function DigitalGameScreen() {
     pista = esIA
       ? "La máquina está lanzando…"
       : !fichasDe(partida, raza).some((f) => f.rel !== null && f.rel < REL_META_INI)
-        ? `Necesitas un 5 (en un dado o sumando) para sacar fichas · ${partida.intentos} ${partida.intentos === 1 ? "intento" : "intentos"}.`
+        ? "Necesitas un 5 para salir."
         : "Lanza los dados.";
   } else if (partida.fase === "mover") {
     if (esIA) pista = "La máquina está pensando…";
-    else if (sacarDisponible && movs.length) pista = "Toca tu base para sacar una ficha con el 5, o una ficha brillante para moverla.";
-    else if (sacarDisponible) pista = "¡Un 5! Toca tu base para sacar una ficha.";
-    else if (salidaBloqueada(partida)) pista = "Tu Salida está llena: mueve primero con el otro dado y luego podrás sacar con el 5.";
-    else if (seleccion) pista = "Elige a qué casilla moverla (el número es lo que avanza).";
+    else if (sacarDisponible && movs.length) pista = "Saca una ficha con el 5 o mueve una brillante.";
+    else if (sacarDisponible) pista = "¡Un 5! Toca tu base para salir.";
+    else if (salidaBloqueada(partida)) pista = "Salida llena: mueve primero con el otro dado.";
+    else if (seleccion) pista = "Elige la casilla de destino.";
     else pista = "Toca una ficha brillante para moverla.";
   } else if (partida.fase === "bono") {
     const premio = premioActual(partida);
-    const motivo = premio?.motivo === "meta" ? "¡Premio por llegar al carril final!" : "¡Premio por comer!";
+    const motivo = premio?.motivo === "meta" ? "¡Premio por llegar al final!" : "¡Premio por comer!";
     const valor = premio?.valor ?? BONO_CAPTURA;
     pista = esIA
       ? "La máquina cobra su premio…"
       : bonoUnico
-        ? `${motivo} Tu ficha avanza ${valor} casillas.`
-        : `${motivo} Toca la ficha que quieres avanzar ${valor} casillas.`;
+        ? `${motivo} Avanzas ${valor}.`
+        : `${motivo} Elige qué ficha avanza ${valor}.`;
   } else if (partida.fase === "evento") pista = "El Portal se agita…";
 
   const dadosMostrados = partida.dados
