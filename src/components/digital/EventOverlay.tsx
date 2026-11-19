@@ -100,7 +100,19 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
             >
               {evento.efecto}
             </motion.p>
+            {/* Efecto adicional según la matriz: parte de la información principal. */}
+            <motion.div
+              className="flex items-center justify-center gap-2 text-xs"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: t(2.1) }}
+            >
+              <img src={RAZAS[raza].logo} alt="" className="h-5 w-5 object-contain" />
+              <span className="text-[color:var(--color-muted)]">{RAZAS[raza].nombre}:</span>
+              <span style={{ color: EFECTO_INFO[efecto].color }}>{EFECTO_INFO[efecto].label}</span>
+            </motion.div>
 
+            {/* Abajo solo el desplegable con lo que pasó exactamente en esta jugada. */}
             <motion.div
               className="mt-2 w-full border-t pt-3"
               style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 35%, transparent)` }}
@@ -108,14 +120,7 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: t(2.3) }}
             >
-              <div className="mb-2 flex items-center justify-center gap-2 text-xs">
-                <img src={RAZAS[raza].logo} alt="" className="h-5 w-5 object-contain" />
-                <span className="text-[color:var(--color-muted)]">{RAZAS[raza].nombre}:</span>
-                <span style={{ color: EFECTO_INFO[efecto].color }}>{EFECTO_INFO[efecto].label}</span>
-              </div>
-              <p className="text-center text-sm leading-snug text-[color:var(--color-parchment)]">{resumen}</p>
-              {lineas.length > 0 && (
-                <div className="mt-3 flex flex-col items-center">
+                <div className="flex flex-col items-center">
                   <button
                     type="button"
                     onClick={() => setDetalleAbierto((v) => !v)}
@@ -130,23 +135,27 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
                   </button>
                   <AnimatePresence initial={false}>
                     {detalleAbierto && (
-                      <motion.ul
-                        className="w-full space-y-1 overflow-hidden"
+                      <motion.div
+                        className="w-full overflow-hidden"
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.25 }}
                       >
-                        {lineas.map((l, i) => (
-                          <li key={i} className={`text-center text-xs leading-snug text-[color:var(--color-parchment-dim)] ${i === 0 ? "pt-2.5" : ""}`}>
-                            {l}
-                          </li>
-                        ))}
-                      </motion.ul>
+                        <p className="pt-3 text-center text-sm leading-snug text-[color:var(--color-parchment)]">{resumen}</p>
+                        {lineas.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {lineas.map((l, i) => (
+                              <li key={i} className="text-center text-xs leading-snug text-[color:var(--color-parchment-dim)]">
+                                {l}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </motion.div>
                     )}
                   </AnimatePresence>
                 </div>
-              )}
             </motion.div>
           </motion.div>
 
