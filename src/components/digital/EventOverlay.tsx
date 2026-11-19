@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import { EventThemeMotif } from "../EventThemeMotif";
 import { RevealWords } from "../RevealWords";
 import { MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO } from "../../game/types";
@@ -10,7 +10,8 @@ import { useModoEvento } from "../../game/useModoEvento";
 
 /** Revelación de un evento del Portal dentro de la partida digital. */
 export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoEvento; onContinuar: () => void }) {
-  const { evento, raza, lineas } = resultado;
+  const { evento, raza, resumen, lineas } = resultado;
+  const [detalleAbierto, setDetalleAbierto] = useState(false);
   const info = TIPOS_EVENTO[evento.tipo];
   const efecto = MATRIZ_EFECTOS[raza][evento.tipo];
 
@@ -19,8 +20,16 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
     audioManager.detenerSfxEvento();
     onContinuar();
   };
+  // Si el jugador abrió "Más información", la tarjeta espera a que pulse "Continuar".
+  const detalleRef = useRef(false);
+  useEffect(() => {
+    detalleRef.current = detalleAbierto;
+  }, [detalleAbierto]);
+  const cerrarAuto = () => {
+    if (!detalleRef.current) cerrar();
+  };
   // Narración y cierre automático según el modo de eventos (normal / auto / rápido).
-  const { ritmo } = useModoEvento(evento.id, cerrar, { duracionRapida: 2000 });
+  const { ritmo } = useModoEvento(evento.id, cerrarAuto, { duracionRapida: 2000 });
   const t = (s: number) => s * ritmo;
 
   useEffect(() => {
@@ -104,13 +113,40 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
                 <span className="text-[color:var(--color-muted)]">{RAZAS[raza].nombre}:</span>
                 <span style={{ color: EFECTO_INFO[efecto].color }}>{EFECTO_INFO[efecto].label}</span>
               </div>
-              <ul className="space-y-1.5">
-                {lineas.map((l, i) => (
-                  <li key={i} className="text-center text-sm leading-snug text-[color:var(--color-parchment)]">
-                    {l}
-                  </li>
-                ))}
-              </ul>
+              <p className="text-center text-sm leading-snug text-[color:var(--color-parchment)]">{resumen}</p>
+              {lineas.length > 0 && (
+                <div className="mt-3 flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={() => setDetalleAbierto((v) => !v)}
+                    aria-expanded={detalleAbierto}
+                    className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs text-[color:var(--color-parchment-dim)] transition-colors hover:text-[color:var(--color-parchment)]"
+                    style={{ borderColor: `color-mix(in srgb, var(${info.brightVar}) 30%, transparent)` }}
+                  >
+                    Más información
+                    <motion.span animate={{ rotate: detalleAbierto ? 180 : 0 }} transition={{ duration: 0.2 }} className="inline-block">
+                      ▾
+                    </motion.span>
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {detalleAbierto && (
+                      <motion.ul
+                        className="w-full space-y-1 overflow-hidden"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                      >
+                        {lineas.map((l, i) => (
+                          <li key={i} className={`text-center text-xs leading-snug text-[color:var(--color-parchment-dim)] ${i === 0 ? "pt-2.5" : ""}`}>
+                            {l}
+                          </li>
+                        ))}
+                      </motion.ul>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </motion.div>
           </motion.div>
 

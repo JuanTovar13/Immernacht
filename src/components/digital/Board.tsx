@@ -24,7 +24,7 @@ import {
   TAM,
   type Punto,
 } from "../../game/digital/board";
-import type { Derrumbe, Ficha, Movimiento } from "../../game/digital/engine";
+import { BONO_CAPTURA, type Derrumbe, type Ficha, type Movimiento } from "../../game/digital/engine";
 
 const pts = (ps: Punto[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 
@@ -579,7 +579,9 @@ function caminoDe(raza: RazaId, desde: number | null, hasta: number | null, n: n
   const fin = puntoFicha(raza, hasta, n);
   if (desde === null || hasta === null || desde === hasta) return [fin];
   const diff = hasta - desde;
-  if (Math.abs(diff) > 14) return [fin];
+  // Hacia adelante se recorre hasta el premio por comer (20); los saltos más largos o
+  // muy hacia atrás (intercambios lejanos) van directos.
+  if (diff > BONO_CAPTURA || diff < -14) return [fin];
   // un salto del recorrido al carril sólo es válido en orden
   if (desde > REL_ENTRADA && hasta <= REL_ENTRADA) return [fin];
   const paso = diff > 0 ? 1 : -1;
@@ -621,7 +623,7 @@ function FichaToken({
     <motion.g
       initial={false}
       animate={{ x: pasos > 1 ? xs : xs[0], y: pasos > 1 ? ys : ys[0] }}
-      transition={{ duration: pasos > 1 ? Math.min(0.13 * pasos, 1.6) : 0.45, ease: pasos > 1 ? "linear" : "easeInOut" }}
+      transition={{ duration: pasos > 1 ? Math.min(0.13 * pasos, 2.2) : 0.45, ease: pasos > 1 ? "linear" : "easeInOut" }}
       onClick={onClick}
       className={movible ? "ficha-movible cursor-pointer" : undefined}
     >
