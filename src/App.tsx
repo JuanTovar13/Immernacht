@@ -8,6 +8,7 @@ import { FinalScreen } from "./screens/FinalScreen";
 import { DigitalSetupScreen } from "./screens/DigitalSetupScreen";
 import { DigitalGameScreen } from "./screens/DigitalGameScreen";
 import { ControlesFlotantes, PanelAjustes } from "./components/ControlesAjustes";
+import { PanelReglas } from "./components/ReglasJuego";
 import "./game/ajustes"; // aplica los ajustes de audio guardados desde el arranque
 
 function App() {
@@ -35,8 +36,10 @@ function App() {
       </AnimatePresence>
 
       {/* Sonido, modo de eventos y ajustes: siempre en la esquina superior derecha */}
-      <ControlesFlotantes conModo={estado === "partida" || estado === "evento" || estado === "digital"} />
+      {/* En la partida digital las reglas ya tienen su botón en la cabecera. */}
+      <ControlesFlotantes conModo={estado === "partida" || estado === "evento" || estado === "digital"} conReglas={estado !== "digital"} />
       <PanelAjustes />
+      <PanelReglas />
     </div>
   );
 }

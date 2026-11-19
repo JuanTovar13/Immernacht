@@ -96,7 +96,8 @@ export function GameScreen() {
 
       {/* HUD */}
       <div className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-none">
-      <div className="relative flex min-h-full w-full flex-col items-center justify-between px-6 py-8">
+      {/* Arriba deja sitio a los botones de la esquina, que en pantallas angostas quedan encima del letrero de turno. */}
+      <div className="relative flex min-h-full w-full flex-col items-center justify-between px-6 pb-8 pt-16 sm:pt-[4.5rem] lg:pt-8">
         <motion.div
           key={turnoActual}
           className="flex items-center gap-2 border border-[color:var(--color-border)] bg-[color:var(--color-panel)]/70 px-4 py-2 backdrop-blur-sm"

@@ -1,12 +1,12 @@
 import { AnimatePresence, motion } from "framer-motion";
 import type { ReactNode } from "react";
 
-export function InfoModal({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) {
+export function InfoModal({ open, onClose, children, capa = "z-30" }: { open: boolean; onClose: () => void; children: ReactNode; capa?: string }) {
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          className="absolute inset-0 z-30 flex items-center justify-center px-6"
+          className={`absolute inset-0 ${capa} flex items-center justify-center px-6`}
           style={{ background: "rgba(2,3,8,0.72)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

@@ -30,6 +30,16 @@ function IconoEngranaje() {
   );
 }
 
+function IconoLibro() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z" fill="currentColor" fillOpacity={0.15} />
+      <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20v3H6.5A2.5 2.5 0 0 1 4 20.5z" />
+      <path d="M9 7.5h7M9 11h5" />
+    </svg>
+  );
+}
+
 function IconoModo({ modo }: { modo: ModoEventos }) {
   return (
     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" aria-hidden>
@@ -88,6 +98,24 @@ export function BotonAjustes() {
   );
 }
 
+/** Abre la ventana con las reglas del juego. */
+export function BotonReglas() {
+  const abrir = useAjustes((s) => s.abrirReglas);
+  return (
+    <button
+      onClick={() => {
+        audioManager.playSfxBoton();
+        abrir(true);
+      }}
+      className={`${estiloBoton} w-9 sm:w-11`}
+      aria-label="Reglas"
+      title="Reglas"
+    >
+      <IconoLibro />
+    </button>
+  );
+}
+
 /** Cambia el modo de los eventos: Normal → Auto → Rápido. */
 export function BotonModo() {
   const modo = useAjustes((s) => s.modoEventos);
@@ -111,11 +139,12 @@ export function BotonModo() {
 }
 
 /** Controles fijos en la esquina superior derecha, iguales en todas las pantallas. */
-export function ControlesFlotantes({ conModo }: { conModo: boolean }) {
+export function ControlesFlotantes({ conModo, conReglas = true }: { conModo: boolean; conReglas?: boolean }) {
   return (
     <div className="pointer-events-none absolute right-3 top-3 z-40 flex sm:right-5 sm:top-5">
       <div className="pointer-events-auto flex gap-1.5 sm:gap-2">
         {conModo && <BotonModo />}
+        {conReglas && <BotonReglas />}
         <BotonSilencio />
         <BotonAjustes />
       </div>

@@ -25,11 +25,14 @@ interface AjustesState {
   modoEventos: ModoEventos;
   /** El panel de ajustes no se guarda: siempre arranca cerrado. */
   panelAbierto: boolean;
+  /** La ventana de reglas tampoco se guarda. */
+  reglasAbiertas: boolean;
   setVolumen: (canal: "musica" | "efectos" | "voces", valor: number) => void;
   toggleSilencio: () => void;
   setModoEventos: (modo: ModoEventos) => void;
   siguienteModo: () => void;
   abrirPanel: (abierto: boolean) => void;
+  abrirReglas: (abiertas: boolean) => void;
 }
 
 export const useAjustes = create<AjustesState>()(
@@ -41,6 +44,7 @@ export const useAjustes = create<AjustesState>()(
       silenciado: false,
       modoEventos: "normal",
       panelAbierto: false,
+      reglasAbiertas: false,
       setVolumen: (canal, valor) => set({ [canal]: Math.max(0, Math.min(1, valor)) } as Pick<AjustesState, typeof canal>),
       toggleSilencio: () => set((s) => ({ silenciado: !s.silenciado })),
       setModoEventos: (modoEventos) => set({ modoEventos }),
@@ -50,6 +54,7 @@ export const useAjustes = create<AjustesState>()(
           return { modoEventos: MODOS_EVENTOS[(i + 1) % MODOS_EVENTOS.length].id };
         }),
       abrirPanel: (panelAbierto) => set({ panelAbierto }),
+      abrirReglas: (reglasAbiertas) => set({ reglasAbiertas }),
     }),
     {
       name: "immernacht-ajustes",

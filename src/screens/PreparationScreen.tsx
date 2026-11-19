@@ -11,6 +11,20 @@ import { HISTORIA_JUEGO, RAZA_DESCRIPCION, EFECTO_INFO } from "../game/lore";
 import { useGameStore } from "../game/store";
 import { audioManager } from "../audio/audioManager";
 
+/**
+ * La versión con tablero físico está en pausa mientras se arma un tablero en condiciones;
+ * por ahora solo se juega la versión digital. Para volver a mostrarla, cambia esto a true.
+ */
+const MODO_TABLERO_DISPONIBLE = false;
+
+/** Estilo dorado del botón principal. */
+const ESTILO_PRINCIPAL = {
+  background: "linear-gradient(180deg, rgba(232,196,104,0.12) 0%, rgba(232,196,104,0.03) 100%)",
+  boxShadow: "0 0 24px rgba(232,196,104,0.15)",
+};
+const CLASE_PRINCIPAL =
+  "relative overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-6 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]";
+
 export function PreparationScreen() {
   const irA = useGameStore((s) => s.irA);
   const iniciarPartida = useGameStore((s) => s.iniciarPartida);
@@ -111,30 +125,30 @@ export function PreparationScreen() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.3 }}
         >
-          <motion.button
-            onClick={comenzarPartida}
-            className="relative overflow-hidden rounded-sm border border-[color:var(--color-eclipse-gold)]/70 px-6 py-3 font-display text-sm tracking-wide text-[color:var(--color-eclipse-gold)]"
-            style={{
-              background: "linear-gradient(180deg, rgba(232,196,104,0.12) 0%, rgba(232,196,104,0.03) 100%)",
-              boxShadow: "0 0 24px rgba(232,196,104,0.15)",
-            }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Jugar con el tablero físico
-          </motion.button>
-          <motion.button
-            onClick={jugarDigital}
-            className="relative overflow-hidden rounded-sm border px-6 py-3 font-display text-sm tracking-wide"
-            style={{
-              borderColor: "color-mix(in srgb, var(--arcano-bright) 70%, transparent)",
-              color: "var(--arcano-glow)",
-              background: "linear-gradient(180deg, rgba(178,127,232,0.14) 0%, rgba(178,127,232,0.03) 100%)",
-              boxShadow: "0 0 24px rgba(178,127,232,0.15)",
-            }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Versión digital
-          </motion.button>
+          {MODO_TABLERO_DISPONIBLE ? (
+            <>
+              <motion.button onClick={comenzarPartida} className={CLASE_PRINCIPAL} style={ESTILO_PRINCIPAL} whileTap={{ scale: 0.95 }}>
+                Jugar con el tablero físico
+              </motion.button>
+              <motion.button
+                onClick={jugarDigital}
+                className="relative overflow-hidden rounded-sm border px-6 py-3 font-display text-sm tracking-wide"
+                style={{
+                  borderColor: "color-mix(in srgb, var(--arcano-bright) 70%, transparent)",
+                  color: "var(--arcano-glow)",
+                  background: "linear-gradient(180deg, rgba(178,127,232,0.14) 0%, rgba(178,127,232,0.03) 100%)",
+                  boxShadow: "0 0 24px rgba(178,127,232,0.15)",
+                }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Versión digital
+              </motion.button>
+            </>
+          ) : (
+            <motion.button onClick={jugarDigital} className={CLASE_PRINCIPAL} style={ESTILO_PRINCIPAL} whileTap={{ scale: 0.95 }}>
+              Comenzar a jugar
+            </motion.button>
+          )}
         </motion.div>
       </div>
       </div>
