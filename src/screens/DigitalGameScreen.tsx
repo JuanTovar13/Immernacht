@@ -26,6 +26,7 @@ import { audioManager } from "../audio/audioManager";
 import { MODOS_EVENTOS, useAjustes } from "../game/ajustes";
 import { ETIQUETA_MODO, IconoModo } from "../components/ControlesAjustes";
 import { useOnline } from "../game/online/conexion";
+import { COLOR_DEBILITADO, IconoDebilitado } from "../components/digital/IconoDebilitado";
 
 const RETRASO_IA = 850;
 
@@ -267,7 +268,12 @@ export function DigitalGameScreen() {
                 </p>
                 <p className="text-[11px] text-[color:var(--color-muted)]">
                   {esIA ? "🤖 Máquina" : enLinea ? `👤 ${nombreTurno}${esMio ? " (tú)" : ""}` : "👤 Jugador"}
-                  {jugador.maldicion > 0 && ` · 🐸 Sapo (${jugador.maldicion})`}
+                  {jugador.maldicion > 0 && (
+                    <span style={{ color: COLOR_DEBILITADO }} title="Dados a la mitad">
+                      {" · "}
+                      <IconoDebilitado titulo="Dados a la mitad" /> Debilitado ({jugador.maldicion})
+                    </span>
+                  )}
                 </p>
               </div>
             </motion.div>

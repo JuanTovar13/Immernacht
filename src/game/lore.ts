@@ -23,5 +23,4 @@ export const EFECTO_INFO: Record<EfectoMatriz, { label: string; color: string }>
   positivo: { label: "Avanza 1 casilla", color: "#8fbf6a" },
   negativo: { label: "Retrocede 1 casilla", color: "#c96a6a" },
   neutral: { label: "Sin efecto adicional", color: "#9aa0b8" },
-  inmune: { label: "Inmune al evento", color: "#e8c468" },
 };

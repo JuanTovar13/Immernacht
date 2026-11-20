@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EventThemeMotif } from "../EventThemeMotif";
 import { RevealWords } from "../RevealWords";
-import { MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO } from "../../game/types";
+import { TIPOS_EVENTO } from "../../game/types";
 import { EFECTO_INFO } from "../../game/lore";
 import type { ResultadoEvento } from "../../game/digital/engine";
 import { audioManager } from "../../audio/audioManager";
@@ -11,10 +11,10 @@ import { useTeclaContinuar } from "../../game/useTeclaContinuar";
 
 /** Revelación de un evento del Portal dentro de la partida digital. */
 export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoEvento; onContinuar: () => void }) {
-  const { evento, raza, resumen, lineas } = resultado;
+  // `texto` puede faltar en partidas en línea creadas antes de este cambio.
+  const { evento, texto, resumen, lineas } = resultado;
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const info = TIPOS_EVENTO[evento.tipo];
-  const efecto = MATRIZ_EFECTOS[raza][evento.tipo];
 
   const cerrar = () => {
     audioManager.detenerNarracion();
@@ -95,25 +95,23 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
             <p className="text-center text-sm text-[color:var(--color-parchment)]">
               <RevealWords texto={evento.descripcion} delayStart={t(1.2)} stagger={0.03 * ritmo} />
             </p>
+            {/* El efecto con la matriz ya aplicada: verde si va a favor, rojo si va en contra. */}
             <motion.p
-              className="text-center text-xs text-[color:var(--color-parchment-dim)]"
+              className="text-center text-sm leading-snug text-[color:var(--color-parchment)]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: t(1.8) }}
             >
-              {evento.efecto}
+              {(texto ?? [{ t: evento.efecto }]).map((seg, i) =>
+                seg.e ? (
+                  <span key={i} className="font-semibold" style={{ color: EFECTO_INFO[seg.e].color }}>
+                    {seg.t}
+                  </span>
+                ) : (
+                  <span key={i}>{seg.t}</span>
+                )
+              )}
             </motion.p>
-            {/* Efecto adicional según la matriz: parte de la información principal. */}
-            <motion.div
-              className="flex items-center justify-center gap-2 text-xs"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: t(2.1) }}
-            >
-              <img src={RAZAS[raza].logo} alt="" className="h-5 w-5 object-contain" />
-              <span className="text-[color:var(--color-muted)]">{RAZAS[raza].nombre}:</span>
-              <span style={{ color: EFECTO_INFO[efecto].color }}>{EFECTO_INFO[efecto].label}</span>
-            </motion.div>
 
             {/* Abajo solo el desplegable con lo que pasó exactamente en esta jugada. */}
             <motion.div

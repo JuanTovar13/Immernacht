@@ -37,8 +37,7 @@ export const MAX_POR_CASILLA = 2;
  * Es un objeto para poder probar variantes en las simulaciones.
  */
 export const FORTALEZAS = {
-  // De momento solo en desarrollo, para probarlos antes de publicarlos.
-  activo: (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true,
+  activo: true,
   /** Turnos del dueño que dura la fortaleza antes de tener que abandonarla. */
   duracion: 1,
   /** ¿La fortaleza también bloquea a las fichas de su propia raza? */
@@ -75,7 +74,7 @@ export interface Ficha {
 /**
  * Casillas cubiertas por un Derrumbe de Rocas mientras dure el efecto:
  * nadie puede entrar en ellas y las fichas que estén ahí no pueden moverse
- * (salvo las inmunes o protegidas cuando cayeron las rocas).
+ * (salvo las protegidas cuando cayeron las rocas).
  */
 export interface Derrumbe {
   id: number;
@@ -84,7 +83,7 @@ export interface Derrumbe {
   celdas: number[];
   raza: RazaId;
   turnos: number;
-  /** Fichas que resistieron las rocas (inmunes o con Simbiosis) y pueden salir. */
+  /** Fichas que resistieron las rocas (con Simbiosis o Runa) y pueden salir. */
   exentas: string[];
   /** Fichas con efecto a favor (+1): quedan atrapadas solo 1 turno en lugar de 2. */
   cortas: string[];
@@ -118,9 +117,17 @@ interface EfectoPendiente {
   contador: number;
 }
 
+/** Trozo del texto de un evento; con `e` se pinta en verde (a favor) o rojo (en contra). */
+export interface Segmento {
+  t: string;
+  e?: "positivo" | "negativo";
+}
+
 export interface ResultadoEvento {
   evento: EventoDef;
   raza: RazaId; // jugador que terminó el turno
+  /** Efecto del evento con los números ya ajustados por la matriz (lo que se muestra en la tarjeta). */
+  texto: Segmento[];
   /** Qué pasó, en una frase corta. */
   resumen: string;
   /** Detalle exacto (se muestra en "Más información"). */
@@ -235,17 +242,13 @@ function derrumbeEn(p: Partida, idx: number): Derrumbe | undefined {
   return p.derrumbes.find((d) => d.celdas.includes(idx));
 }
 
-/** Elemento de cada bloqueo: las razas inmunes a ese elemento pueden salir. */
-const ELEMENTO_BLOQUEO = { rocas: "terrenal", cadenas: "celestial" } as const;
-
-/** ¿La ficha está atrapada bajo un derrumbe o unas cadenas? Las inmunes a su elemento pueden salir. */
+/** ¿La ficha está atrapada bajo un derrumbe o unas cadenas? */
 function atrapada(p: Partida, f: Ficha): Derrumbe | undefined {
   if (!enRecorrido(f)) return undefined;
   const idx = loopIndex(f.raza, f.rel!);
   // Puede haber rocas y cadenas en la misma casilla: basta con que una la retenga.
   return p.derrumbes.find((d) => {
     if (!d.celdas.includes(idx) || d.exentas.includes(f.id)) return false;
-    if (MATRIZ_EFECTOS[f.raza][ELEMENTO_BLOQUEO[d.tipo]] === "inmune") return false;
     // Con el efecto a favor solo queda atrapada el primer turno.
     return !(d.cortas.includes(f.id) && d.turnos < 2);
   });
@@ -559,25 +562,13 @@ function hayAcciones(p: Partida) {
   return puedeSacar(p) || movimientosLegales(p).length > 0;
 }
 
-/** Una ficha del carril final que ya no puede avanzar (todas las casillas de adelante ocupadas). */
-function atascadaEnMeta(p: Partida, f: Ficha): boolean {
-  for (let d = f.rel! + 1; d <= REL_MAX; d++) {
-    if (!p.fichas.some((o) => o.raza === f.raza && o.rel === d)) return false;
-  }
-  return true;
-}
-
 /**
  * Lanzamientos del turno:
  * - con fichas en el recorrido → 1
- * - con fichas atascadas en el carril final y el resto en la base → 1 (si no saca 5, pasa)
- * - con todas en la base (o en un carril donde aún pueden avanzar) → 3 intentos para sacar un 5
+ * - sin fichas en el recorrido (todas en la base o en el carril final) → 3 intentos para sacar un 5
  */
 function intentosIniciales(p: Partida, raza: RazaId): number {
-  if (tieneEnRecorrido(p, raza)) return 1;
-  const meta = fichasDe(p, raza).filter(enMeta);
-  if (meta.length > 0 && meta.every((f) => atascadaEnMeta(p, f))) return 1;
-  return 3;
+  return tieneEnRecorrido(p, raza) ? 1 : 3;
 }
 
 /* ---------------- Acciones ---------------- */
@@ -588,11 +579,13 @@ export function tirar(prev: Partida): Partida {
   const j = jugadorActual(p);
   const orig: [number, number] = [tirarDado(), tirarDado()];
   const efectivos: [number, number] =
-    j.maldicion > 0 ? [Math.floor(orig[0] / 2), Math.floor(orig[1] / 2)] : [orig[0], orig[1]];
+    // Dados a la mitad redondeando hacia arriba (un 1 sigue valiendo 1).
+    j.maldicion > 0 ? [Math.ceil(orig[0] / 2), Math.ceil(orig[1] / 2)] : [orig[0], orig[1]];
   p.dadosOriginales = orig;
   p.dados = efectivos;
   p.usados = [false, false];
-  p.esPar = orig[0] === orig[1];
+  // En los tiros de salida (sin fichas en el recorrido) los pares no dan otro lanzamiento.
+  p.esPar = orig[0] === orig[1] && tieneEnRecorrido(p, j.raza);
   p.fichaLiberada = null;
   p.fase = "mover";
   p.intentos -= 1;
@@ -751,11 +744,12 @@ function terminarTurno(p: Partida): Partida {
     // El efecto se calcula ahora, pero se aplica al pulsar "Continuar" para que se vea.
     const q = clonar(p);
     q.bonos = [];
-    const { resumen, detalle: lineas } = resolverEvento(q, evento, jugadorActual(q));
+    const { resumen, detalle: lineas, extremos } = resolverEvento(q, evento, jugadorActual(q));
     actualizarBloqueos(q);
     p.eventoActual = {
       evento,
       raza: j.raza,
+      texto: textoEvento(evento, MATRIZ_EFECTOS[j.raza][evento.tipo], extremos),
       resumen,
       lineas,
       pendiente: { fichas: q.fichas, jugadores: q.jugadores, derrumbes: q.derrumbes, bonos: q.bonos, log: q.log, contador: q.contador },
@@ -840,7 +834,7 @@ function actualizarPesos(pesos: Partida["pesosEvento"], salio: string): Partida[
 
 /* ---------------- Eventos ---------------- */
 
-const MOD: Record<EfectoMatriz, number> = { positivo: 1, negativo: -1, neutral: 0, inmune: 0 };
+const MOD: Record<EfectoMatriz, number> = { positivo: 1, negativo: -1, neutral: 0 };
 
 /**
  * Desplaza una ficha del recorrido por un evento. Nunca entra al carril final
@@ -862,7 +856,7 @@ function desplazar(p: Partida, f: Ficha, n: number) {
   }
 }
 
-const MAS: Record<EfectoMatriz, string> = { positivo: " (+1 a favor)", negativo: " (−1 en contra)", neutral: "", inmune: "" };
+const MAS: Record<EfectoMatriz, string> = { positivo: " (+1 a favor)", negativo: " (−1 en contra)", neutral: "" };
 
 function casillas(n: number) {
   return `${n} casilla${n === 1 ? "" : "s"}`;
@@ -879,6 +873,8 @@ function movimiento(n: number, e: EfectoMatriz, plural = false) {
 interface Resolucion {
   resumen: string;
   detalle: string[];
+  /** Juicio Divino y Estampida: de qué raza son la ficha más adelantada y la más rezagada. */
+  extremos?: { adelantada: RazaId; rezagada: RazaId };
 }
 
 /** Aplica el evento y devuelve qué pasó, solo en términos de juego (el lore va en la descripción). */
@@ -888,16 +884,11 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
   const efecto = (r: RazaId) => MATRIZ_EFECTOS[r][tipo];
   const enTablero = p.fichas.filter(enRecorrido);
   const los = (r: RazaId) => `los ${nombre(r)}`;
-  const inmunesEn = (fs: Ficha[]) => {
-    const razas = [...new Set(fs.filter((f) => efecto(f.raza) === "inmune").map((f) => f.raza))];
-    for (const r of razas) detalle.push(`${nombre(r)}: inmunes a lo ${tipo}, no les afecta.`);
-  };
 
   // Juicio Divino y Estampida no dependen de la última ficha movida.
   if (evento.id === "juicio-divino" || evento.id === "estampida") {
-    const candidatas = enTablero.filter((f) => efecto(f.raza) !== "inmune");
+    const candidatas = enTablero;
     if (candidatas.length < 2) {
-      inmunesEn(enTablero);
       return { resumen: "No hay suficientes fichas en el recorrido: no pasa nada.", detalle };
     }
     const orden = [...candidatas].sort((a, b) => b.rel! - a.rel! || Math.random() - 0.5);
@@ -909,8 +900,8 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
     desplazar(p, ultima, nUltima);
     detalle.push(`Más adelantada (${nombre(primera.raza)}): ${movimiento(nPrimera, efecto(primera.raza))}.`);
     detalle.push(`Más rezagada (${nombre(ultima.raza)}): ${movimiento(nUltima, efecto(ultima.raza))}.`);
-    inmunesEn(enTablero);
     return {
+      extremos: { adelantada: primera.raza, rezagada: ultima.raza },
       resumen: `La ficha más adelantada (${nombre(primera.raza)}) retrocede y la más rezagada (${nombre(ultima.raza)}) avanza.`,
       detalle,
     };
@@ -940,7 +931,6 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
     let movidas = 0;
     for (const f of afectadas) {
       const e = efecto(f.raza);
-      if (e === "inmune") continue;
       const n = 3 + MOD[e];
       desplazar(p, f, n);
       movidas++;
@@ -952,7 +942,6 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       const n = detalle.filter((x) => x === l).length;
       return n > 1 ? l.replace(":", ` (${n} fichas):`) : l;
     }));
-    inmunesEn(afectadas);
     const resumen =
       movidas === 0
         ? "Ninguna ficha cercana se mueve."
@@ -975,10 +964,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
     const cortas: string[] = [];
     for (const f of afectadas) {
       const e = efecto(f.raza);
-      if (e === "inmune") {
-        exentas.push(f.id);
-        detalle.push(`${nombre(f.raza)}: inmunes, pueden salir.`);
-      } else if (f.proteccion) {
+      if (f.proteccion) {
         f.proteccion = false;
         exentas.push(f.id);
         detalle.push(`${nombre(f.raza)}: su protección se gasta y puede salir.`);
@@ -996,9 +982,6 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
   }
 
   // Eventos de una sola ficha: la última movida por el jugador.
-  if (efectoPropio === "inmune") {
-    return { resumen: `Los ${nombre(raza)} son inmunes a lo ${tipo}: no pasa nada.`, detalle };
-  }
   const mod = MOD[efectoPropio];
   const ajuste = () => {
     const m = movimiento(mod, efectoPropio);
@@ -1018,7 +1001,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       const idx = loopIndex(raza, objetivo.rel!);
       if (derrumbeEn(p, idx)) return { resumen: "La ficha está atrapada y no se puede mover: no pasa nada.", detalle };
       const cercanas = enTablero
-        .filter((f) => f.id !== objetivo.id && efecto(f.raza) !== "inmune" && !derrumbeEn(p, loopIndex(f.raza, f.rel!)))
+        .filter((f) => f.id !== objetivo.id && !derrumbeEn(p, loopIndex(f.raza, f.rel!)))
         .map((f) => ({ f, d: distanciaCircular(loopIndex(f.raza, f.rel!), idx) }))
         .filter(({ d }) => d >= 1 && d <= 5)
         .sort((a, b) => a.d - b.d || Math.random() - 0.5);
@@ -1074,6 +1057,65 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
     }
   }
   return { resumen: "No pasa nada.", detalle };
+}
+
+const S = (t: string): Segmento => ({ t });
+/** Número o frase afectada por la matriz: en color si es a favor o en contra. */
+const N = (t: string, e: EfectoMatriz): Segmento => (e === "neutral" ? { t } : { t, e });
+
+/**
+ * Efecto de un evento con los números ya ajustados por la matriz para la raza del jugador
+ * (en Juicio Divino y Estampida, para la raza de cada ficha afectada).
+ */
+export function textoEvento(evento: EventoDef, e: EfectoMatriz, extremos?: { adelantada: RazaId; rezagada: RazaId }): Segmento[] {
+  const m = MOD[e];
+  switch (evento.id) {
+    case "escudo-de-luz":
+    case "tormenta-de-arena":
+      return m === 0
+        ? [S("No te pueden comer hasta tu próximo turno.")]
+        : [S("No te pueden comer hasta tu próximo turno y "), N(m > 0 ? "avanzas 1 casilla" : "retrocedes 1 casilla", e), S(".")];
+    case "juicio-divino":
+    case "estampida": {
+      const ea = extremos ? MATRIZ_EFECTOS[extremos.adelantada][evento.tipo] : "neutral";
+      const er = extremos ? MATRIZ_EFECTOS[extremos.rezagada][evento.tipo] : "neutral";
+      const quien = (r?: RazaId) => (r ? ` (${nombre(r)})` : "");
+      return [
+        S(`La ficha más adelantada${quien(extremos?.adelantada)} retrocede `),
+        N(casillas(3 - MOD[ea]), ea),
+        S(` y la más rezagada${quien(extremos?.rezagada)} avanza `),
+        N(String(3 + MOD[er]), er),
+        S("."),
+      ];
+    }
+    case "intercambio-dimensional":
+    case "tromba-de-agua":
+      return m === 0
+        ? [S("Tu ficha cambia de lugar con la más cercana a 5 casillas o menos.")]
+        : [S("Tu ficha cambia de lugar con la más cercana a 5 casillas o menos y "), N(m > 0 ? "avanza 1 casilla" : "retrocede 1 casilla", e), S(".")];
+    case "maldicion-de-polimorfia":
+    case "pantano-de-lianas":
+      if (m > 0) return [S("Tus dados valen la mitad "), N("1 turno", e), S(".")];
+      if (m < 0) return [S("Tus dados valen la mitad 2 turnos y "), N("retrocedes 1 casilla", e), S(".")];
+      return [S("Tus dados valen la mitad 2 turnos.")];
+    case "ataque-de-bestia":
+    case "estallido-runico":
+      return [S("Tu ficha retrocede "), N(casillas(5 - m), e), S(". Si cae sobre otra, la come.")];
+    case "simbiosis-de-enredaderas":
+    case "runa-guardiana":
+      return [S("Avanzas "), N(casillas(3 + m), e), S(" y anulas el primer ataque o trampa hasta tu próximo turno.")];
+    case "rafaga-huracanada":
+    case "himno-de-los-angeles":
+      return m === 0
+        ? [S("Las fichas a 2 casillas o menos avanzan 3.")]
+        : [S("Las fichas a 2 casillas o menos avanzan 3; las tuyas, "), N(String(3 + m), e), S(".")];
+    case "derrumbe-de-rocas":
+    case "cadenas-sagradas":
+      return m > 0
+        ? [S("Esa casilla y la siguiente se bloquean 2 turnos; tu ficha sale en "), N("1 turno", e), S(".")]
+        : [S("Esa casilla y la siguiente se bloquean 2 turnos.")];
+  }
+  return [S(evento.efecto)];
 }
 
 function capital(s: string) {
