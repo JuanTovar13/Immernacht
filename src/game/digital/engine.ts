@@ -30,6 +30,20 @@ export const BONO_META = 10;
 /** Máximo de fichas en una misma casilla del recorrido. */
 export const MAX_POR_CASILLA = 2;
 /** Cada vez que un evento sale, su peso se multiplica por este factor durante los 3 eventos siguientes. */
+/**
+ * Fortalezas: dos fichas de la misma raza en una casilla del recorrido.
+ * Nadie puede caer en ellas ni cruzarlas mientras la fortaleza esté activa.
+ * Duran `duracion` turnos del dueño: al llegar a 0 está obligado a abandonarla.
+ * Es un objeto para poder probar variantes en las simulaciones.
+ */
+export const FORTALEZAS = {
+  // De momento solo en desarrollo, para probarlos antes de publicarlos.
+  activo: (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true,
+  /** Turnos del dueño que dura la fortaleza antes de tener que abandonarla. */
+  duracion: 1,
+  /** ¿La fortaleza también bloquea a las fichas de su propia raza? */
+  bloqueaPropia: true,
+};
 const FACTOR_REPETICION = 0.35;
 const VENTANA_REPETICION = 3;
 
@@ -82,6 +96,16 @@ export interface Premio {
   motivo: "captura" | "meta";
 }
 
+export interface Fortaleza {
+  raza: RazaId;
+  idx: number;
+  fichas: [string, string];
+  /** Turnos del dueño que le quedan; con 0 está obligado a abandonarla en este turno. */
+  turnos: number;
+  /** Venció sin poder abandonarse (o se rehízo justo después): ya no bloquea. */
+  roto: boolean;
+}
+
 export type Fase = "tirar" | "mover" | "bono" | "evento" | "fin";
 
 /** Estado que deja el evento; se aplica cuando el jugador pulsa "Continuar". */
@@ -130,6 +154,10 @@ export interface Partida {
   trasBono: "continuar" | "avanzar";
   eventoActual: ResultadoEvento | null;
   derrumbes: Derrumbe[];
+  /** Fortalezas formadas (solo con FORTALEZAS.activo). */
+  fortalezas?: Fortaleza[];
+  /** Fichas de una fortaleza que se tuvo que abandonar este turno (no pueden rehacerlo en el mismo turno). */
+  forzadas?: string[];
   /** Historial para que un mismo evento no se repita tan seguido. */
   pesosEvento: Record<string, { nivel: number; restantes: number }>;
   ganador: RazaId | null;
@@ -154,6 +182,7 @@ export interface Movimiento {
 /* ---------------- Utilidades ---------------- */
 
 const nombre = (r: RazaId) => RAZAS[r].nombre;
+const RAZAS_IDS = Object.keys(RAZAS) as RazaId[];
 
 function clonar(p: Partida): Partida {
   return {
@@ -162,6 +191,8 @@ function clonar(p: Partida): Partida {
     fichas: p.fichas.map((f) => ({ ...f })),
     usados: [...p.usados] as [boolean, boolean],
     derrumbes: p.derrumbes.map((d) => ({ ...d })),
+    fortalezas: (p.fortalezas ?? []).map((b) => ({ ...b })),
+    forzadas: [...(p.forzadas ?? [])],
     bonos: p.bonos.map((b) => ({ ...b })),
     log: [...p.log],
   };
@@ -230,6 +261,75 @@ function turnosAtrapada(p: Partida, f: Ficha): number {
 /** Recalcula el contador de bloqueo de cada ficha (para mostrarlo sobre la ficha). */
 function actualizarBloqueos(p: Partida) {
   for (const f of p.fichas) f.bloqueo = turnosAtrapada(p, f);
+}
+
+/* ---------------- Fortalezas ---------------- */
+
+/** Recalcula las fortalezas según dónde están las fichas (conserva el contador de los que ya existían). */
+function sincronizarFortalezas(p: Partida) {
+  if (!FORTALEZAS.activo) {
+    p.fortalezas = [];
+    return;
+  }
+  const antes = p.fortalezas ?? [];
+  const grupos = new Map<string, Ficha[]>();
+  for (const f of p.fichas) {
+    if (!enRecorrido(f)) continue;
+    const idx = loopIndex(f.raza, f.rel!);
+    // No se puede formar fortaleza en la Salida de otra raza.
+    if (RAZAS_IDS.some((r) => r !== f.raza && idxSalida(r) === idx)) continue;
+    const k = `${f.raza}@${idx}`;
+    grupos.set(k, [...(grupos.get(k) ?? []), f]);
+  }
+  const forzadas = p.forzadas ?? [];
+  const nuevos: Fortaleza[] = [];
+  for (const fs of grupos.values()) {
+    if (fs.length < 2) continue;
+    const ids = [fs[0].id, fs[1].id].sort() as [string, string];
+    const idx = loopIndex(fs[0].raza, fs[0].rel!);
+    const previo = antes.find((b) => b.idx === idx && b.fichas[0] === ids[0] && b.fichas[1] === ids[1]);
+    nuevos.push(
+      previo ?? {
+        raza: fs[0].raza,
+        idx,
+        fichas: ids,
+        turnos: FORTALEZAS.duracion,
+        roto: forzadas.includes(ids[0]) && forzadas.includes(ids[1]),
+      }
+    );
+  }
+  p.fortalezas = nuevos;
+}
+
+/** ¿La fortaleza bloquea el paso? Sobre un derrumbe no tiene efecto. */
+function fortalezaActiva(p: Partida, b: Fortaleza): boolean {
+  return !b.roto && !derrumbeEn(p, b.idx);
+}
+
+/** Fortalezas que están bloqueando ahora mismo. */
+export function fortalezasActivas(p: Partida): Fortaleza[] {
+  return (p.fortalezas ?? []).filter((b) => fortalezaActiva(p, b));
+}
+
+/** Fortaleza activa en la casilla idx, si lo hay. */
+export function fortalezaEn(p: Partida, idx: number): Fortaleza | undefined {
+  return (p.fortalezas ?? []).find((b) => b.idx === idx && fortalezaActiva(p, b));
+}
+
+/** ¿Alguna fortaleza impide a la ficha `f` cruzar o caer en las casillas hasta `destino`? */
+function cortaElPaso(p: Partida, f: Ficha, destino: number): boolean {
+  if (!FORTALEZAS.activo || f.rel === null) return false;
+  const hasta = Math.min(destino, REL_ENTRADA);
+  for (let r = f.rel + 1; r <= hasta; r++) {
+    const b = fortalezaEn(p, loopIndex(f.raza, r));
+    if (b && !b.fichas.includes(f.id) && (b.raza !== f.raza || FORTALEZAS.bloqueaPropia)) return true;
+  }
+  return false;
+}
+
+/** Fortalezas del jugador que tiene que abandonar en este turno. */
+function fortalezasVencidas(p: Partida, raza: RazaId): Fortaleza[] {
+  return (p.fortalezas ?? []).filter((b) => b.raza === raza && !b.roto && b.turnos <= 0);
 }
 
 const tirarDado = () => 1 + Math.floor(Math.random() * 6);
@@ -337,6 +437,8 @@ function cabeEnCasilla(p: Partida, raza: RazaId, idx: number, excluir: string): 
 
 function destinoValido(p: Partida, f: Ficha, destino: number): boolean {
   if (destino > REL_MAX) return false;
+  // Nadie puede caer en una fortaleza ni cruzarla.
+  if (cortaElPaso(p, f, destino)) return false;
   if (destino >= REL_META_INI) {
     // Dos fichas no pueden ocupar la misma casilla del carril final.
     return !p.fichas.some((o) => o.id !== f.id && o.raza === f.raza && o.rel === destino);
@@ -367,6 +469,8 @@ function salidaLibre(p: Partida, raza: RazaId): boolean {
 export function puedeSacar(p: Partida): boolean {
   if (p.fase !== "mover") return false;
   const raza = jugadorActual(p).raza;
+  // Con una fortaleza vencida hay que abandonarla antes de sacar fichas.
+  if (debeRomper(p)) return false;
   if (!fichasDe(p, raza).some((f) => f.rel === null)) return false;
   return opcionSalida(p) !== null && salidaLibre(p, raza);
 }
@@ -398,7 +502,26 @@ function movimientosBono(p: Partida): Movimiento[] {
   return res;
 }
 
+/** Movimientos que abandonan una fortaleza vencida del jugador. */
+function movimientosQueRompen(p: Partida, movs: Movimiento[]): Movimiento[] {
+  const vencidos = fortalezasVencidas(p, jugadorActual(p).raza);
+  if (!vencidos.length) return [];
+  return movs.filter((m) => vencidos.some((b) => b.fichas.includes(m.fichaId)));
+}
+
+/** ¿Está obligado a mover una ficha de una fortaleza vencida (y puede hacerlo)? */
+export function debeRomper(p: Partida): boolean {
+  return movimientosQueRompen(p, movimientosSinObligacion(p)).length > 0;
+}
+
+/** Si tiene que abandonar una fortaleza y puede, solo valen los movimientos que la abandonan. */
 export function movimientosLegales(p: Partida): Movimiento[] {
+  const movs = movimientosSinObligacion(p);
+  const rompen = movimientosQueRompen(p, movs);
+  return rompen.length ? rompen : movs;
+}
+
+function movimientosSinObligacion(p: Partida): Movimiento[] {
   if (p.fase === "bono") return movimientosBono(p);
   if (p.fase !== "mover" || !p.dados) return [];
   const raza = jugadorActual(p).raza;
@@ -511,6 +634,7 @@ export function sacarFicha(prev: Partida): Partida {
   ficha.rel = 0;
   // Si la Salida está bajo un derrumbe, la ficha sale pero queda atrapada ahí.
   actualizarBloqueos(p);
+  sincronizarFortalezas(p);
   p.fichaLiberada = ficha.id;
   j.ultimaFicha = ficha.id;
   registrar(p, `${nombre(j.raza)} sacan una ficha de su base.`, j.raza);
@@ -530,6 +654,8 @@ export function mover(prev: Partida, fichaId: string, opcion: OpcionDado): Parti
   const j = jugadorActual(p);
   const f = p.fichas.find((x) => x.id === fichaId)!;
   const origen = f.rel!;
+  const roto = fortalezasVencidas(p, j.raza).find((b) => b.fichas.includes(f.id));
+  if (roto) p.forzadas = [...(p.forzadas ?? []), ...roto.fichas];
   f.rel = mov.destino;
   const esBono = opcion === "bono";
   if (esBono) p.bonos.shift();
@@ -544,6 +670,7 @@ export function mover(prev: Partida, fichaId: string, opcion: OpcionDado): Parti
   } else if (origen < REL_META_INI) {
     registrar(p, `Una ficha de los ${nombre(j.raza)} entra al carril del Portal.`, j.raza);
   }
+  sincronizarFortalezas(p);
   if (esBono) registrar(p, `Premio: una ficha de los ${nombre(j.raza)} avanza ${mov.valor} casillas.`, j.raza);
 
   if (fichasDe(p, j.raza).every(enMeta)) {
@@ -607,6 +734,8 @@ function finTirada(p: Partida): Partida {
 function terminarTurno(p: Partida): Partida {
   const j = jugadorActual(p);
   if (j.maldicion > 0) j.maldicion -= 1;
+  // Una fortaleza vencida que no se pudo abandonar se deshace igual.
+  for (const b of fortalezasVencidas(p, j.raza)) b.roto = true;
   p.derrumbes = p.derrumbes
     .map((d) => (d.raza === j.raza ? { ...d, turnos: d.turnos - 1 } : d))
     .filter((d) => d.turnos > 0);
@@ -646,6 +775,7 @@ export function cerrarEvento(prev: Partida): Partida {
   p.jugadores = res.jugadores.map((j) => ({ ...j }));
   p.derrumbes = res.derrumbes.map((d) => ({ ...d }));
   p.log = [...res.log];
+  sincronizarFortalezas(p);
   p.contador = Math.max(p.contador, res.contador);
   p.eventoActual = null;
   if (res.bonos.length) {
@@ -658,6 +788,10 @@ export function cerrarEvento(prev: Partida): Partida {
 function avanzarTurno(p: Partida): Partida {
   p.turno = (p.turno + 1) % p.jugadores.length;
   const j = jugadorActual(p);
+  // Las fortalezas del jugador que empieza gastan un turno.
+  p.forzadas = [];
+  sincronizarFortalezas(p);
+  p.fortalezas = (p.fortalezas ?? []).map((b) => (b.raza === j.raza ? { ...b, turnos: b.turnos - 1 } : b));
   // Escudo de Luz y Simbiosis duran "hasta tu próximo turno".
   for (const f of fichasDe(p, j.raza)) {
     f.escudo = false;

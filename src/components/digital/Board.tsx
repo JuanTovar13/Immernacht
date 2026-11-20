@@ -24,7 +24,7 @@ import {
   TAM,
   type Punto,
 } from "../../game/digital/board";
-import { BONO_CAPTURA, type Derrumbe, type Ficha, type Movimiento } from "../../game/digital/engine";
+import { BONO_CAPTURA, type Derrumbe, type Fortaleza, type Ficha, type Movimiento } from "../../game/digital/engine";
 
 const pts = (ps: Punto[]) => ps.map((p) => `${p.x},${p.y}`).join(" ");
 
@@ -42,13 +42,14 @@ interface BoardProps {
   destinos: Movimiento[];
   baseActiva: boolean;
   derrumbes: Derrumbe[];
+  fortalezas: Fortaleza[];
   onFicha: (id: string) => void;
   onDestino: (m: Movimiento) => void;
   onBase: () => void;
 }
 
 export function Board(props: BoardProps) {
-  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, onFicha, onDestino, onBase } = props;
+  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase } = props;
   const lugares = useLugares(fichas);
   const fichaSel = fichas.find((f) => f.id === seleccion);
 
@@ -133,6 +134,13 @@ export function Board(props: BoardProps) {
             d.tipo === "cadenas" ? <Cadenas key={`${d.id}-${idx}`} idx={idx} /> : <Rocas key={`${d.id}-${idx}`} idx={idx} />
           )
         )}
+      </AnimatePresence>
+
+      {/* Fortalezas: dos fichas de la misma raza que cortan el paso */}
+      <AnimatePresence>
+        {fortalezas.map((b) => (
+          <MarcaFortaleza key={`${b.fichas.join()}-${b.idx}`} idx={b.idx} raza={b.raza} turnos={b.turnos} />
+        ))}
       </AnimatePresence>
 
       {/* Fichas */}
@@ -244,6 +252,181 @@ function calcularLados(fichas: Ficha[], previos: Map<string, Lado>): Map<string,
   }
   return res;
 }
+
+/**
+ * Fortaleza: dos muros que encierran las fichas por delante y por detrás,
+ * cada raza con su material. Parpadea cuando toca abandonarla.
+ */
+function MarcaFortaleza({ idx, raza, turnos }: { idx: number; raza: RazaId; turnos: number }) {
+  const poly = poligonoLoop(idx);
+  const c = centroLoop(idx);
+  const col = COLOR_TABLERO[raza];
+  // Un muro pegado por dentro a cada uno de los dos lados más largos de la casilla:
+  // en las rectangulares quedan delante y detrás de las fichas; en las triangulares, en los bordes de la cuña.
+  const centro = { x: poly.reduce((s, p) => s + p.x, 0) / poly.length, y: poly.reduce((s, p) => s + p.y, 0) / poly.length };
+  const lados = poly
+    .map((p, i) => [p, poly[(i + 1) % poly.length]] as const)
+    .sort(([a1, b1], [a2, b2]) => Math.hypot(b2.x - a2.x, b2.y - a2.y) - Math.hypot(b1.x - a1.x, b1.y - a1.y))
+    .slice(0, 2)
+    .map(([a, b]) => {
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2;
+      const ang = Math.atan2(b.y - a.y, b.x - a.x);
+      // El "abajo" local (+y) tras rotar; el muro mira hacia afuera de la casilla.
+      const afuera = -Math.sin(ang) * (mx - centro.x) + Math.cos(ang) * (my - centro.y) > 0 ? 1 : -1;
+      return { mx, my, ang: (ang * 180) / Math.PI, lado: afuera as 1 | -1 };
+    });
+  const Muro = MUROS[raza];
+  return (
+    <motion.g
+      initial={{ opacity: 0, scale: 1.12 }}
+      animate={{ opacity: turnos <= 0 ? [1, 0.4, 1] : 1, scale: 1 }}
+      // La salida lleva su propia transición: si heredara la repetición infinita, nunca terminaría.
+      exit={{ opacity: 0, transition: { duration: 0.3 } }}
+      transition={turnos <= 0 ? { duration: 1.1, repeat: Infinity } : { duration: 0.35, ease: "easeOut" }}
+      style={{ pointerEvents: "none", transformOrigin: `${c.x}px ${c.y}px` }}
+    >
+      <defs>
+        <clipPath id={`fortaleza-${idx}`}>
+          <polygon points={pts(poly)} />
+        </clipPath>
+      </defs>
+      <polygon points={pts(poly)} fill={col.base} fillOpacity={0.3} stroke={col.claro} strokeWidth={2} strokeLinejoin="round" />
+      {/* Recortado a la casilla para que no se salga en las casillas triangulares */}
+      <g clipPath={`url(#fortaleza-${idx})`}>
+        {lados.map((l, i) => (
+          <g key={i} transform={`translate(${l.mx} ${l.my}) rotate(${l.ang}) translate(0 ${-l.lado * (MURO_Y + 3.5)})`}>
+            <Muro lado={l.lado} />
+          </g>
+        ))}
+      </g>
+    </motion.g>
+  );
+}
+
+/** Largo del muro (a lo ancho de la casilla) y distancia al centro (en el sentido de avance). */
+const MURO_X = [-48, 48] as const;
+const MURO_Y = 15.5;
+const LINEA = "#1d1a22";
+
+/** Enanos: muro de piedra con hileras de bloques. */
+function MuroEnanos({ lado }: { lado: 1 | -1 }) {
+  // Dos hileras de bloques; la de afuera queda pegada al borde de la casilla.
+  const filas = [0, 1];
+  const yFila = (fila: number) => (lado > 0 ? 12 + fila * 3.6 : -15.6 - fila * 3.6);
+  return (
+    <g>
+      {filas.flatMap((fila) =>
+        Array.from({ length: 9 }, (_, i) => {
+          const ancho = 12;
+          const x = MURO_X[0] - (fila ? ancho / 2 : 0) + i * ancho;
+          return (
+            <rect
+              key={`${fila}-${i}`}
+              x={x}
+              y={yFila(fila)}
+              width={ancho - 0.8}
+              height={3.6}
+              rx={0.8}
+              fill={(i + fila) % 2 ? "#c9874a" : "#a8682f"}
+              stroke={LINEA}
+              strokeWidth={0.8}
+            />
+          );
+        })
+      )}
+    </g>
+  );
+}
+
+/** Humanos: empalizada de troncos con la punta hacia afuera y una franja azul. */
+function MuroHumanos({ lado }: { lado: 1 | -1 }) {
+  const base = lado * (MURO_Y - 4.5);
+  const punta = lado * (MURO_Y + 3);
+  return (
+    <g>
+      {Array.from({ length: 14 }, (_, i) => {
+        const x = MURO_X[0] + 3 + i * 7;
+        return (
+          <path
+            key={i}
+            d={`M ${x - 3} ${base} L ${x - 3} ${punta - lado * 2.5} L ${x} ${punta} L ${x + 3} ${punta - lado * 2.5} L ${x + 3} ${base} Z`}
+            fill={i % 2 ? "#9a6a3c" : "#b07c48"}
+            stroke={LINEA}
+            strokeWidth={0.8}
+          />
+        );
+      })}
+      <rect x={MURO_X[0]} y={lado * (MURO_Y - 2) - 1.3} width={MURO_X[1] - MURO_X[0]} height={2.6} fill={COLOR_TABLERO.humanos.base} stroke={LINEA} strokeWidth={0.6} />
+    </g>
+  );
+}
+
+/** Elfos: raíces vivas trenzadas con hojas. */
+function MuroElfos({ lado }: { lado: 1 | -1 }) {
+  const y = lado * (MURO_Y - 0.5);
+  const onda = (fase: number) => {
+    let d = `M ${MURO_X[0]} ${y}`;
+    for (let x = MURO_X[0]; x < MURO_X[1]; x += 12) {
+      d += ` Q ${x + 6} ${y + (fase ? 3.2 : -3.2)} ${x + 12} ${y}`;
+    }
+    return d;
+  };
+  return (
+    <g>
+      <path d={onda(0)} fill="none" stroke="#5a3b22" strokeWidth={3.4} strokeLinecap="round" />
+      <path d={onda(1)} fill="none" stroke="#7a5230" strokeWidth={2.4} strokeLinecap="round" />
+      {Array.from({ length: 8 }, (_, i) => {
+        const x = MURO_X[0] + 6 + i * 12;
+        const dy = (i % 2 ? 1 : -1) * 3.5;
+        return (
+          <ellipse
+            key={i}
+            cx={x}
+            cy={y + dy}
+            rx={3.6}
+            ry={1.9}
+            transform={`rotate(${i % 2 ? 35 : -35} ${x} ${y + dy})`}
+            fill={i % 3 ? COLOR_TABLERO.elfos.claro : "#9fe0a8"}
+            stroke={LINEA}
+            strokeWidth={0.6}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+/** No-Muertos: cerca de huesos con un cráneo en el centro. */
+function MuroNoMuertos({ lado }: { lado: 1 | -1 }) {
+  const y = lado * MURO_Y;
+  const hueso = (x: number, key: number) => (
+    <g key={key}>
+      <line x1={x - 4.5} y1={y} x2={x + 4.5} y2={y} stroke="#efe4cf" strokeWidth={2.2} />
+      {[-4.5, 4.5].flatMap((dx) =>
+        [-1.4, 1.4].map((dy) => <circle key={`${dx}${dy}`} cx={x + dx} cy={y + dy} r={1.5} fill="#efe4cf" stroke={LINEA} strokeWidth={0.4} />)
+      )}
+    </g>
+  );
+  return (
+    <g>
+      {[-40, -29, -18, 18, 29, 40].map((x, i) => hueso(x, i))}
+      {/* Cráneo */}
+      <g transform={`translate(0 ${y - lado * 1.5})`}>
+        <path d="M -5 1.5 Q -5.5 -5 0 -5.2 Q 5.5 -5 5 1.5 L 3 2 L 3 4 L -3 4 L -3 2 Z" fill="#efe4cf" stroke={LINEA} strokeWidth={0.7} />
+        <circle cx={-2} cy={-1} r={1.4} fill={COLOR_TABLERO.nomuertos.oscuro} />
+        <circle cx={2} cy={-1} r={1.4} fill={COLOR_TABLERO.nomuertos.oscuro} />
+      </g>
+    </g>
+  );
+}
+
+const MUROS: Record<RazaId, (p: { lado: 1 | -1 }) => React.ReactElement> = {
+  enanos: MuroEnanos,
+  humanos: MuroHumanos,
+  elfos: MuroElfos,
+  nomuertos: MuroNoMuertos,
+};
 
 /** Rocas y señal de prohibido sobre una casilla afectada por un Derrumbe. */
 function Rocas({ idx }: { idx: number }) {

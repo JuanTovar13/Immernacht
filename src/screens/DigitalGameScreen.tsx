@@ -15,7 +15,9 @@ import {
   jugadorActual,
   movimientosLegales,
   premioActual,
+  debeRomper,
   puedeSacar,
+  fortalezasActivas,
   salidaBloqueada,
   type Movimiento,
 } from "../game/digital/engine";
@@ -190,6 +192,7 @@ export function DigitalGameScreen() {
         : "Lanza los dados";
   } else if (partida.fase === "mover") {
     if (esIA) pista = "Máquina pensando…";
+    else if (debeRomper(partida)) pista = "Abandona tu fortaleza: mueve una de sus fichas";
     else if (sacarDisponible && movs.length) pista = "Saca con el 5 o mueve una ficha";
     else if (sacarDisponible) pista = "¡Un 5! Toca tu base";
     else if (salidaBloqueada(partida)) pista = "Salida llena: mueve primero con el otro dado";
@@ -236,6 +239,7 @@ export function DigitalGameScreen() {
               destinos={destinos}
               baseActiva={sacarDisponible}
               derrumbes={partida.derrumbes}
+              fortalezas={fortalezasActivas(partida)}
               onFicha={onFicha}
               onDestino={moverA}
               onBase={() => {

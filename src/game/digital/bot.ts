@@ -1,9 +1,12 @@
 /* Jugador controlado por la máquina: elige la acción con mejor puntaje. */
+import { RAZAS, type RazaId } from "../types";
 import { esRefugio, idxSalida, loopIndex, REL_ENTRADA, REL_META_INI } from "./board";
 import {
   jugadorActual,
   movimientosLegales,
+  FORTALEZAS,
   puedeSacar,
+  fortalezaEn,
   salidaBloqueada,
   VALOR_SALIDA,
   type Movimiento,
@@ -25,6 +28,14 @@ function amenazas(p: Partida, raza: string, idx: number): number {
   return n;
 }
 
+/** ¿Mover la ficha a idx forma una fortaleza (otra ficha propia ya está ahí)? */
+function formaFortaleza(p: Partida, raza: RazaId, idx: number, fichaId: string): boolean {
+  if (!FORTALEZAS.activo) return false;
+  // En la Salida de otra raza no se forma fortaleza.
+  if ((Object.keys(RAZAS) as RazaId[]).some((r) => r !== raza && idxSalida(r) === idx)) return false;
+  return p.fichas.some((o) => o.id !== fichaId && o.raza === raza && o.rel !== null && o.rel <= REL_ENTRADA && loopIndex(raza, o.rel) === idx);
+}
+
 function puntuar(p: Partida, m: Movimiento): number {
   const raza = jugadorActual(p).raza;
   const f = p.fichas.find((x) => x.id === m.fichaId)!;
@@ -34,11 +45,15 @@ function puntuar(p: Partida, m: Movimiento): number {
   } else {
     const idx = loopIndex(raza, m.destino);
     if (esRefugio(idx)) s += 12;
-    else s -= amenazas(p, raza, idx) * 7;
+    else if (formaFortaleza(p, raza, idx, m.fichaId)) {
+      // Una fortaleza no se puede comer y frena a los rivales que vienen detrás.
+      s += 12 + amenazas(p, raza, idx) * 4;
+    } else s -= amenazas(p, raza, idx) * 7;
   }
   if (f.rel !== null && f.rel <= REL_ENTRADA) {
     const origen = loopIndex(raza, f.rel);
-    if (!esRefugio(origen)) s += amenazas(p, raza, origen) * 6;
+    if (fortalezaEn(p, origen)) s -= amenazas(p, raza, origen) * 6; // abandonarla deja sola a la otra ficha
+    else if (!esRefugio(origen)) s += amenazas(p, raza, origen) * 6;
     // acercarse al final pesa un poco más
     s += f.rel * 0.05;
     // Con la Salida llena y un 5 guardado: primero despejar la Salida con el otro dado.
