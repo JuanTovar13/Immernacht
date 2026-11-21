@@ -289,7 +289,7 @@ export function DigitalGameScreen() {
           audioManager.playSfxBoton();
           setSalirAbierto(true);
         }}
-        className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-sm border border-white/15 bg-black/30 text-[color:var(--color-parchment-dim)] backdrop-blur-sm transition-colors hover:text-[color:var(--color-parchment)] sm:left-5 sm:top-5 sm:h-11 sm:w-11"
+        className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-sm border border-white/15 bg-black/55 text-[color:var(--color-parchment-dim)] transition-colors sm:bg-black/30 sm:backdrop-blur-sm hover:text-[color:var(--color-parchment)] sm:left-5 sm:top-5 sm:h-11 sm:w-11"
         aria-label="Salir de la partida"
         title="Salir de la partida"
       >
@@ -374,12 +374,18 @@ export function DigitalGameScreen() {
               {partida.fase === "tirar" && puedoJugar ? (
                 <motion.button
                   onClick={lanzar}
-                  className="rounded-sm border px-4 py-2.5 font-display text-sm tracking-wide"
+                  className="relative rounded-sm border px-4 py-2.5 font-display text-sm tracking-wide"
                   style={{ borderColor: color.claro, color: "#fff6e6", background: `linear-gradient(180deg, ${color.base}, ${color.oscuro})` }}
-                  animate={{ boxShadow: [`0 0 0px ${color.base}`, `0 0 18px ${color.base}`, `0 0 0px ${color.base}`] }}
-                  transition={{ duration: 1.8, repeat: Infinity }}
                   whileTap={{ scale: 0.95 }}
                 >
+                  {/* Resplandor fijo que solo cambia de opacidad: el móvil lo anima sin repintar la sombra */}
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 rounded-sm"
+                    style={{ boxShadow: `0 0 18px ${color.base}` }}
+                    animate={{ opacity: [0, 1, 0] }}
+                    transition={{ duration: 1.8, repeat: Infinity }}
+                  />
                   Lanzar dados
                 </motion.button>
               ) : null}

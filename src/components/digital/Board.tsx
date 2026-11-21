@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { createContext, memo, useContext, useState } from "react";
+import { createContext, memo, useContext, useState, type CSSProperties } from "react";
 import { RAZAS, type RazaId } from "../../game/types";
 import {
   BASE_CUARTO0,
@@ -53,164 +53,202 @@ interface BoardProps {
 /** Giro de la vista: los textos, emblemas y fichas lo deshacen para verse siempre derechos. */
 const GiroVista = createContext(0);
 
+/** Mismo sistema de coordenadas para todas las capas del tablero. */
+const VISTA = `-10 -10 ${TAM + 20} ${TAM + 20}`;
+
+/**
+ * Cada capa en su propia superficie de la GPU: lo que se anima arriba (fichas,
+ * brillos, casillas de destino) ya no obliga al móvil a repintar las casillas.
+ */
+const CAPA: CSSProperties = { transform: "translateZ(0)" };
+
+/** Brillo de las fichas que se pueden mover: un degradado ya dibujado (desenfocar en cada fotograma es caro en el móvil). */
+const ID_BRILLO_SEL = "brillo-sel";
+const idBrillo = (raza: RazaId) => `brillo-${raza}`;
+
 export function Board(props: BoardProps) {
   const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0 } = props;
   const lugares = useLugares(fichas);
   const fichaSel = fichas.find((f) => f.id === seleccion);
 
   return (
-    <svg viewBox={`-10 -10 ${TAM + 20} ${TAM + 20}`} className="h-full w-full select-none" role="img" aria-label="Tablero de Immernacht">
+    <GiroVista.Provider value={giro}>
+      <div className="relative h-full w-full select-none" role="img" aria-label="Tablero de Immernacht">
+        {/* Capa fija: se pinta una vez (solo cambia si cambian las razas en juego o el giro) */}
+        <TableroFijo activas={razasEnJuego.join(",")} giro={giro} />
+
+        {/* Anillo del portal: gira por CSS en su propia capa, sin repintar el tablero */}
+        <PortalGiratorio />
+
+        {/* Capa viva: fichas, derrumbes, fortalezas y casillas marcadas */}
+        <svg viewBox={VISTA} className="absolute inset-0 h-full w-full" style={CAPA}>
+          <defs>
+            {RAZA_DE_CUARTO.map((r) => (
+              <DegradadoBrillo key={r} id={idBrillo(r)} color={COLOR_TABLERO[r].claro} />
+            ))}
+            <DegradadoBrillo id={ID_BRILLO_SEL} color="#fff3c4" />
+          </defs>
+          <g transform={`rotate(${giro} ${TAM / 2} ${TAM / 2})`}>
+            {/* Derrumbes de Rocas: casillas afectadas */}
+            <AnimatePresence>
+              {derrumbes.flatMap((d) =>
+                d.celdas.map((idx) =>
+                  d.tipo === "cadenas" ? <Cadenas key={`${d.id}-${idx}`} idx={idx} /> : <Rocas key={`${d.id}-${idx}`} idx={idx} />
+                )
+              )}
+            </AnimatePresence>
+
+            {/* Fortalezas: dos fichas de la misma raza que cortan el paso */}
+            <AnimatePresence>
+              {fortalezas.map((b) => (
+                <MarcaFortaleza key={`${b.fichas.join()}-${b.idx}`} idx={b.idx} raza={b.raza} turnos={b.turnos} />
+              ))}
+            </AnimatePresence>
+
+            {/* Fichas */}
+            {fichas.map((f) => (
+              <FichaToken
+                key={f.id}
+                ficha={f}
+                offset={lugares.get(f.id) ?? { x: 0, y: 0 }}
+                movible={movibles.has(f.id)}
+                seleccionada={seleccion === f.id}
+                onClick={() => onFicha(f.id)}
+              />
+            ))}
+
+            {/* Base clicable para sacar ficha (encima de las fichas para que sea fácil de tocar) */}
+            {baseActiva && <BaseActiva raza={turno} onClick={onBase} />}
+
+            {/* Casillas a las que puede ir la ficha seleccionada: se ilumina la casilla entera */}
+            {fichaSel &&
+              destinos.map((m) => {
+                const poly = poligonoCasilla(fichaSel.raza, m.destino);
+                const c = puntoFicha(fichaSel.raza, m.destino, fichaSel.n);
+                return (
+                  <g key={`${m.opcion}`} onClick={() => onDestino(m)} style={{ cursor: "pointer" }}>
+                    <motion.polygon
+                      points={pts(poly)}
+                      fill="#ffe9a8"
+                      stroke="#fff3c4"
+                      strokeWidth={3}
+                      strokeLinejoin="round"
+                      initial={{ fillOpacity: 0.25 }}
+                      animate={{ fillOpacity: [0.22, 0.5, 0.22] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                    />
+                    <text
+                      x={c.x}
+                      y={c.y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontFamily="Cinzel, serif"
+                      fontWeight={700}
+                      fontSize={18}
+                      fill="#fff"
+                      stroke="#1a1426"
+                      strokeWidth={3.5}
+                      paintOrder="stroke"
+                      transform={`rotate(${-giro} ${c.x} ${c.y})`}
+                      style={{ pointerEvents: "none" }}
+                    >
+                      {m.valor}
+                    </text>
+                  </g>
+                );
+              })}
+          </g>
+        </svg>
+      </div>
+    </GiroVista.Provider>
+  );
+}
+
+function DegradadoBrillo({ id, color }: { id: string; color: string }) {
+  return (
+    <radialGradient id={id}>
+      <stop offset="0%" stopColor={color} stopOpacity={1} />
+      <stop offset="55%" stopColor={color} stopOpacity={0.75} />
+      <stop offset="100%" stopColor={color} stopOpacity={0} />
+    </radialGradient>
+  );
+}
+
+/** Casillas, bases, rótulos y emblemas: nada de esto se anima. */
+const TableroFijo = memo(function TableroFijo({ activas, giro }: { activas: string; giro: number }) {
+  const razasEnJuego = activas.split(",");
+  return (
+    <svg viewBox={VISTA} className="absolute inset-0 h-full w-full" style={CAPA} aria-hidden>
       <defs>
         <radialGradient id="portal-g" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="#5b3d8f" />
           <stop offset="60%" stopColor="#2a1d48" />
           <stop offset="100%" stopColor="#17112b" />
         </radialGradient>
-        <filter id="sombra" x="-50%" y="-50%" width="200%" height="200%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#000" floodOpacity="0.55" />
-        </filter>
-        <filter id="brillo" x="-80%" y="-80%" width="260%" height="260%">
-          <feGaussianBlur stdDeviation="5" />
-        </filter>
       </defs>
-
-      <GiroVista.Provider value={giro}>
       <g transform={`rotate(${giro} ${TAM / 2} ${TAM / 2})`}>
+        {/* Marco */}
+        <rect x={-8} y={-8} width={TAM + 16} height={TAM + 16} rx={16} fill="#e8c468" />
+        <rect x={0} y={0} width={TAM} height={TAM} rx={8} fill={PISTA} />
 
-      {/* Marco */}
-      <rect x={-8} y={-8} width={TAM + 16} height={TAM + 16} rx={16} fill="#e8c468" />
-      <rect x={0} y={0} width={TAM} height={TAM} rx={8} fill={PISTA} />
-
-      {/* Cuatro cuartos: misma geometría rotada */}
-      {[0, 1, 2, 3].map((q) => (
-        <CuartoEstatico key={q} q={q} activo={razasEnJuego.includes(RAZA_DE_CUARTO[q])} />
-      ))}
-
-      {/* Etiquetas (fuera del grupo rotado para que se lean bien) */}
-      {[0, 1, 2, 3].map((q) =>
-        [0, 5, 14].map((k) => {
-          const c = rotar(CELDAS_CUARTO0[k].centro, q);
-          // Ángulo en pantalla (con el giro de la vista), siempre legible; luego se descuenta el giro.
-          let ang = CELDAS_CUARTO0[k].anguloTexto - 90 * q + giro;
-          ang = ((ang % 360) + 360) % 360;
-          if (ang > 90 && ang <= 270) ang -= 180;
-          ang -= giro;
-          return (
-            <text
-              key={`${q}-${k}`}
-              x={c.x}
-              y={c.y}
-              transform={`rotate(${ang} ${c.x} ${c.y})`}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontFamily="Cinzel, serif"
-              fontWeight={600}
-              fontSize={k === 0 ? 15 : 16}
-              fill="#fff6e6"
-              style={{ pointerEvents: "none" }}
-            >
-              {k === 5 ? "Salida" : "Refugio"}
-            </text>
-          );
-        })
-      )}
-
-      {/* Emblemas en las casillas de la base (sin rotar) */}
-      {[0, 1, 2, 3].map((q) => {
-        const raza = RAZA_DE_CUARTO[q];
-        return BASE_CUARTO0.map((p, i) => {
-          const c = rotar(p, q);
-          return (
-            <image
-              key={`${q}-${i}`}
-              href={RAZAS[raza].logo}
-              x={c.x - 17}
-              y={c.y - 17}
-              width={34}
-              height={34}
-              transform={`rotate(${-giro} ${c.x} ${c.y})`}
-              opacity={razasEnJuego.includes(raza) ? 0.35 : 0.15}
-              style={{ pointerEvents: "none" }}
-            />
-          );
-        });
-      })}
-
-      <Portal />
-
-      {/* Derrumbes de Rocas: casillas afectadas */}
-      <AnimatePresence>
-        {derrumbes.flatMap((d) =>
-          d.celdas.map((idx) =>
-            d.tipo === "cadenas" ? <Cadenas key={`${d.id}-${idx}`} idx={idx} /> : <Rocas key={`${d.id}-${idx}`} idx={idx} />
-          )
-        )}
-      </AnimatePresence>
-
-      {/* Fortalezas: dos fichas de la misma raza que cortan el paso */}
-      <AnimatePresence>
-        {fortalezas.map((b) => (
-          <MarcaFortaleza key={`${b.fichas.join()}-${b.idx}`} idx={b.idx} raza={b.raza} turnos={b.turnos} />
+        {/* Cuatro cuartos: misma geometría rotada */}
+        {[0, 1, 2, 3].map((q) => (
+          <CuartoEstatico key={q} q={q} activo={razasEnJuego.includes(RAZA_DE_CUARTO[q])} />
         ))}
-      </AnimatePresence>
 
-      {/* Fichas */}
-      {fichas.map((f) => (
-        <FichaToken
-          key={f.id}
-          ficha={f}
-          offset={lugares.get(f.id) ?? { x: 0, y: 0 }}
-          movible={movibles.has(f.id)}
-          seleccionada={seleccion === f.id}
-          onClick={() => onFicha(f.id)}
-        />
-      ))}
-
-      {/* Base clicable para sacar ficha (encima de las fichas para que sea fácil de tocar) */}
-      {baseActiva && <BaseActiva raza={turno} onClick={onBase} />}
-
-      {/* Casillas a las que puede ir la ficha seleccionada: se ilumina la casilla entera */}
-      {fichaSel &&
-        destinos.map((m) => {
-          const poly = poligonoCasilla(fichaSel.raza, m.destino);
-          const c = puntoFicha(fichaSel.raza, m.destino, fichaSel.n);
-          return (
-            <g key={`${m.opcion}`} onClick={() => onDestino(m)} style={{ cursor: "pointer" }}>
-              <motion.polygon
-                points={pts(poly)}
-                fill="#ffe9a8"
-                stroke="#fff3c4"
-                strokeWidth={3}
-                strokeLinejoin="round"
-                initial={{ fillOpacity: 0.25 }}
-                animate={{ fillOpacity: [0.22, 0.5, 0.22] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-              />
+        {/* Etiquetas (fuera del grupo rotado para que se lean bien) */}
+        {[0, 1, 2, 3].map((q) =>
+          [0, 5, 14].map((k) => {
+            const c = rotar(CELDAS_CUARTO0[k].centro, q);
+            // Ángulo en pantalla (con el giro de la vista), siempre legible; luego se descuenta el giro.
+            let ang = CELDAS_CUARTO0[k].anguloTexto - 90 * q + giro;
+            ang = ((ang % 360) + 360) % 360;
+            if (ang > 90 && ang <= 270) ang -= 180;
+            ang -= giro;
+            return (
               <text
+                key={`${q}-${k}`}
                 x={c.x}
                 y={c.y}
+                transform={`rotate(${ang} ${c.x} ${c.y})`}
                 textAnchor="middle"
                 dominantBaseline="central"
                 fontFamily="Cinzel, serif"
-                fontWeight={700}
-                fontSize={18}
-                fill="#fff"
-                stroke="#1a1426"
-                strokeWidth={3.5}
-                paintOrder="stroke"
-                transform={`rotate(${-giro} ${c.x} ${c.y})`}
-                style={{ pointerEvents: "none" }}
+                fontWeight={600}
+                fontSize={k === 0 ? 15 : 16}
+                fill="#fff6e6"
               >
-                {m.valor}
+                {k === 5 ? "Salida" : "Refugio"}
               </text>
-            </g>
-          );
+            );
+          })
+        )}
+
+        {/* Emblemas en las casillas de la base (siempre derechos) */}
+        {[0, 1, 2, 3].map((q) => {
+          const raza = RAZA_DE_CUARTO[q];
+          return BASE_CUARTO0.map((p, i) => {
+            const c = rotar(p, q);
+            return (
+              <image
+                key={`${q}-${i}`}
+                href={RAZAS[raza].logo}
+                x={c.x - 17}
+                y={c.y - 17}
+                width={34}
+                height={34}
+                transform={`rotate(${-giro} ${c.x} ${c.y})`}
+                opacity={razasEnJuego.includes(raza) ? 0.35 : 0.15}
+              />
+            );
+          });
         })}
+
+        <PortalFondo />
       </g>
-      </GiroVista.Provider>
     </svg>
   );
-}
+});
 
 /**
  * Lugar de cada ficha dentro de su casilla. Si dos fichas comparten casilla,
@@ -639,50 +677,50 @@ const CuartoEstatico = memo(function CuartoEstatico({ q, activo }: { q: number; 
   );
 });
 
-function Portal() {
+/** Fondo del portal (fijo): el cuadro morado y el ojo central. */
+function PortalFondo() {
   const { x, y, w } = PORTAL;
   const c = CENTRO;
   return (
     <g>
       <rect x={x} y={y} width={w} height={w} fill="url(#portal-g)" />
-      {/* Giro nativo de SVG alrededor del centro exacto del portal */}
-      <g>
-        <animateTransform
-          attributeName="transform"
-          type="rotate"
-          from={`0 ${c.x} ${c.y}`}
-          to={`360 ${c.x} ${c.y}`}
-          dur="40s"
-          repeatCount="indefinite"
-        />
-        <circle cx={c.x} cy={c.y} r={38} fill="none" stroke="#b27fe8" strokeWidth={1.2} strokeDasharray="4 5" opacity={0.8} />
+      <circle cx={c.x} cy={c.y} r={16} fill="#0b0816" stroke="#e8c468" strokeWidth={1.5} />
+    </g>
+  );
+}
+
+/** Radio del anillo giratorio del portal, en unidades del tablero. */
+const R_ANILLO = 40;
+
+/**
+ * Anillo del portal que gira despacio. Es un elemento HTML aparte con una
+ * animación CSS de giro: el móvil la resuelve en la GPU sin repintar nada.
+ * Es simétrico, así que no le afecta el giro de la vista.
+ */
+function PortalGiratorio() {
+  const lado = (2 * R_ANILLO) / (TAM + 20);
+  const centro = (CENTRO.x + 10) / (TAM + 20);
+  return (
+    <div
+      className="pointer-events-none absolute animate-[spin_40s_linear_infinite]"
+      style={{
+        width: `${lado * 100}%`,
+        height: `${lado * 100}%`,
+        left: `${(centro - lado / 2) * 100}%`,
+        top: `${(centro - lado / 2) * 100}%`,
+        willChange: "transform",
+      }}
+    >
+      <svg viewBox={`${-R_ANILLO} ${-R_ANILLO} ${2 * R_ANILLO} ${2 * R_ANILLO}`} className="h-full w-full" aria-hidden>
+        <circle r={38} fill="none" stroke="#b27fe8" strokeWidth={1.2} strokeDasharray="4 5" opacity={0.8} />
         {Array.from({ length: 6 }, (_, i) => {
           const a = (i * Math.PI) / 3;
           return (
-            <line
-              key={i}
-              x1={c.x + Math.cos(a) * 18}
-              y1={c.y + Math.sin(a) * 18}
-              x2={c.x + Math.cos(a) * 36}
-              y2={c.y + Math.sin(a) * 36}
-              stroke="#d9b8ff"
-              strokeWidth={1}
-              opacity={0.6}
-            />
+            <line key={i} x1={Math.cos(a) * 18} y1={Math.sin(a) * 18} x2={Math.cos(a) * 36} y2={Math.sin(a) * 36} stroke="#d9b8ff" strokeWidth={1} opacity={0.6} />
           );
         })}
-      </g>
-      <motion.circle
-        cx={c.x}
-        cy={c.y}
-        r={16}
-        fill="#0b0816"
-        stroke="#e8c468"
-        strokeWidth={1.5}
-        animate={{ opacity: [0.85, 1, 0.85] }}
-        transition={{ duration: 2.5, repeat: Infinity }}
-      />
-    </g>
+      </svg>
+    </div>
   );
 }
 
@@ -811,7 +849,6 @@ function FichaToken({
   }
   const camino = mov.camino;
 
-  const col = COLOR_TABLERO[ficha.raza];
   // El recorrido (casilla a casilla) y el lado dentro de la casilla se animan por
   // separado: si cambia el lado, la ficha solo se corre un poco, sin repetir su camino.
   const xs = camino.map((p) => p.x);
@@ -832,9 +869,8 @@ function FichaToken({
       <circle r={movible ? 24 : 20} fill="transparent" />
       {(movible || seleccionada) && (
         <motion.circle
-          r={22}
-          fill={seleccionada ? "#fff3c4" : col.claro}
-          filter="url(#brillo)"
+          r={32}
+          fill={`url(#${seleccionada ? ID_BRILLO_SEL : idBrillo(ficha.raza)})`}
           animate={{ opacity: seleccionada ? [0.7, 1, 0.7] : [0.35, 0.8, 0.35] }}
           transition={{ duration: 1.1, repeat: Infinity }}
         />
@@ -853,7 +889,6 @@ function FichaToken({
           y={-(ICONO_FICHA[ficha.raza].centro.y / ICONO_TAM) * FICHA_W}
           width={FICHA_W}
           height={FICHA_W}
-          filter="url(#sombra)"
           style={{ pointerEvents: "none" }}
         />
         {ficha.bloqueo > 0 && (

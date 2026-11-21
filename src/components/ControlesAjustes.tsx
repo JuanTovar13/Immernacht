@@ -54,9 +54,10 @@ export const ETIQUETA_MODO: Record<ModoEventos, string> = { normal: "Normal", au
 
 /* ---------------- Botones ---------------- */
 
-/** Botones de 36 px en el celular y de 44 px en pantallas grandes. */
+/** Botones de 36 px en el celular y de 44 px en pantallas grandes. En el celular,
+ *  fondo más oscuro en lugar del desenfoque (que se recalcula con cada estrella que parpadea detrás). */
 const estiloBoton =
-  "flex h-9 sm:h-11 items-center justify-center gap-1.5 rounded-sm border border-white/15 bg-black/30 text-[color:var(--color-parchment-dim)] backdrop-blur-sm transition-colors hover:text-[color:var(--color-parchment)]";
+  "flex h-9 sm:h-11 items-center justify-center gap-1.5 rounded-sm border border-white/15 bg-black/55 sm:bg-black/30 text-[color:var(--color-parchment-dim)] sm:backdrop-blur-sm transition-colors hover:text-[color:var(--color-parchment)]";
 
 /** Silencia o reactiva toda la aplicación. */
 export function BotonSilencio() {
