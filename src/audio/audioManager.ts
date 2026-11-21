@@ -13,6 +13,7 @@ import type { TipoEvento } from "../game/types";
  *   sfx/activar-evento.mp3       → al presionar "Invocar Evento"
  *   sfx/victoria.mp3             → pantalla final
  *   sfx/nada-ocurre.mp3          → la mayoría de las veces que "no pasa nada"
+ *   sfx/notificacion-de-turno.mp3 → en línea, cuando le toca a este jugador
  *
  *   sfx/tipos/celestial-reveal.mp3   → whoosh de revelación SEGÚN EL TIPO (4 archivos)
  *   sfx/tipos/natural-reveal.mp3
@@ -156,6 +157,11 @@ export const audioManager = {
   /** Click genérico — llamar en el onClick de CUALQUIER botón de la app. */
   playSfxBoton() {
     playSafe("/audio/sfx/boton.mp3", 0.5);
+  },
+
+  /** En línea: avisa a este jugador de que le toca. */
+  playSfxTurno() {
+    playSafe("/audio/sfx/notificacion-de-turno.mp3", 0.7);
   },
 
   playSfxActivarEvento() {

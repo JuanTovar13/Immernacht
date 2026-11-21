@@ -5,7 +5,7 @@ import { InfoModal } from "../components/InfoModal";
 import { Board } from "../components/digital/Board";
 import { Dado } from "../components/digital/Dice";
 import { EventOverlay } from "../components/digital/EventOverlay";
-import { RAZAS } from "../game/types";
+import { RAZAS, type RazaId } from "../game/types";
 import { useGameStore } from "../game/store";
 import { useDigitalStore } from "../game/digital/store";
 import { COLOR_TABLERO, REL_META_INI } from "../game/digital/board";
@@ -40,7 +40,9 @@ export function DigitalGameScreen() {
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [eventoVisible, setEventoVisible] = useState(false);
   const [salirAbierto, setSalirAbierto] = useState(false);
-  const [aviso, setAviso] = useState<string | null>(null);
+  /** Avisos en cola: se muestran de uno en uno en la franja central del tablero. */
+  const [avisos, setAvisos] = useState<AvisoTablero[]>([]);
+  const empujarAviso = (a: Omit<AvisoTablero, "id">) => setAvisos((c) => [...c, { ...a, id: ++idAviso }]);
   /** En línea: evento que este jugador ya cerró en su pantalla (lo cierra de verdad quien tiene el turno). */
   const [eventoOculto, setEventoOculto] = useState<number | null>(null);
 
@@ -83,13 +85,25 @@ export function DigitalGameScreen() {
     return () => clearTimeout(t);
   }, [fase, partida?.ganador, partidaTerminada, enLinea]);
 
-  // Avisos breves
+  // Avisos breves del motor (en línea cada mensaje del servidor trae la partida
+  // entera, así que se comparan por id para no repetir el mismo aviso).
+  const avisoId = partida?.aviso?.id;
+  const ultimoAviso = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!partida?.aviso) return;
-    setAviso(partida.aviso.texto);
-    const t = setTimeout(() => setAviso(null), 2400);
+    const a = useDigitalStore.getState().partida?.aviso;
+    if (!a || a.id === ultimoAviso.current) return;
+    ultimoAviso.current = a.id;
+    empujarAviso({ texto: a.texto });
+  }, [avisoId]);
+
+  // Cada aviso se queda unos segundos; si hay otros esperando, pasa más rápido.
+  const avisoActual = avisos[0];
+  const hayCola = avisos.length > 1;
+  useEffect(() => {
+    if (!avisoActual) return;
+    const t = setTimeout(() => setAvisos((c) => c.slice(1)), hayCola ? 1600 : avisoActual.raza ? 2400 : 2800);
     return () => clearTimeout(t);
-  }, [partida?.aviso]);
+  }, [avisoActual, hayCola]);
 
   // Se limpia la selección cuando cambia el turno o la fase.
   useEffect(() => setSeleccion(null), [turnoIdx, fase, partida?.usados]);
@@ -101,6 +115,55 @@ export function DigitalGameScreen() {
   const esMio = !enLinea || (!!jugador && misRazas.includes(jugador.raza));
   const puedoJugar = !esIA && esMio;
   const nombreTurno = jugador ? (nombres[jugador.raza] ?? "Jugador") : "";
+
+  // En línea: sonido y aviso cuando le toca a este jugador, un recordatorio si
+  // se queda quieto, y el título de la pestaña parpadea si está en otra pestaña.
+  const miTurnoEnLinea = enLinea && puedoJugar && fase !== "fin";
+  const razaTurno = jugador?.raza;
+  const recordado = useRef(false);
+  useEffect(() => {
+    if (!miTurnoEnLinea || !razaTurno) return;
+    recordado.current = false;
+    audioManager.playSfxTurno();
+    empujarAviso({ texto: "¡Es tu turno!", raza: razaTurno });
+  }, [miTurnoEnLinea, turnoIdx, razaTurno]);
+  useEffect(() => {
+    // Se reinicia con cada jugada: solo salta si de verdad no ha hecho nada.
+    if (!miTurnoEnLinea || !razaTurno || recordado.current) return;
+    const t = setTimeout(() => {
+      recordado.current = true;
+      audioManager.playSfxTurno();
+      empujarAviso({ texto: "Sigue siendo tu turno", raza: razaTurno });
+    }, ESPERA_RECORDATORIO);
+    return () => clearTimeout(t);
+  }, [miTurnoEnLinea, razaTurno, partida]);
+  useEffect(() => {
+    if (!miTurnoEnLinea || !razaTurno) return;
+    const original = document.title;
+    let intervalo: ReturnType<typeof setInterval> | undefined;
+    const actualizar = () => {
+      clearInterval(intervalo);
+      if (document.hidden) {
+        let alterno = true;
+        document.title = TITULO_TURNO;
+        intervalo = setInterval(() => {
+          alterno = !alterno;
+          document.title = alterno ? TITULO_TURNO : original;
+        }, 1000);
+      } else {
+        document.title = original;
+        // Al volver a la pestaña el primer aviso ya pasó: se repite (sin sonido).
+        empujarAviso({ texto: "¡Es tu turno!", raza: razaTurno });
+      }
+    };
+    if (document.hidden) actualizar();
+    document.addEventListener("visibilitychange", actualizar);
+    return () => {
+      clearInterval(intervalo);
+      document.removeEventListener("visibilitychange", actualizar);
+      document.title = original;
+    };
+  }, [miTurnoEnLinea, razaTurno]);
   const ajustesAbiertos = useAjustes((s) => s.panelAbierto);
   const reglasAbiertas = useAjustes((s) => s.reglasAbiertas);
   const abrirReglas = useAjustes((s) => s.abrirReglas);
@@ -230,7 +293,7 @@ export function DigitalGameScreen() {
           className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2 portrait:pt-14 landscape:p-3 sm:portrait:pt-[4.5rem]"
           style={{ containerType: "size" }}
         >
-          <div style={{ width: "min(100cqw, 100cqh)", height: "min(100cqw, 100cqh)" }}>
+          <div className="relative" style={{ width: "min(100cqw, 100cqh)", height: "min(100cqw, 100cqh)" }}>
             <Board
               fichas={partida.fichas}
               razasEnJuego={partida.jugadores.map((j) => j.raza)}
@@ -248,6 +311,7 @@ export function DigitalGameScreen() {
                 sacar();
               }}
             />
+            <AvisoCentral aviso={avisoActual} />
           </div>
         </div>
 
@@ -360,21 +424,6 @@ export function DigitalGameScreen() {
         </div>
       </div>
 
-      {/* Aviso flotante */}
-      <AnimatePresence>
-        {aviso && (
-          <motion.div
-            key={aviso}
-            className="pointer-events-none absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full border border-white/15 bg-black/75 px-4 py-2 text-center text-xs text-[color:var(--color-parchment)]"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-          >
-            {aviso}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <AnimatePresence>
         {eventoVisible && partida.eventoActual && eventoOculto !== partida.contador && (
           <EventOverlay
@@ -402,6 +451,74 @@ export function DigitalGameScreen() {
           Sí, salir al inicio
         </button>
       </InfoModal>
+    </div>
+  );
+}
+
+interface AvisoTablero {
+  id: number;
+  texto: string;
+  /** Si lleva raza es un aviso de turno: más grande y con el color de esa raza. */
+  raza?: RazaId;
+}
+let idAviso = 0;
+/** En línea: segundos sin jugar antes de recordarle a alguien que es su turno. */
+const ESPERA_RECORDATORIO = 20000;
+const TITULO_TURNO = "⚔ ¡Tu turno! · Immernacht";
+const FONDO_AVISO = "rgba(9, 7, 20, 0.9)";
+
+/**
+ * Aviso sobre la franja horizontal del centro del tablero (los carriles de meta
+ * de los lados y el portal, donde no hay jugadas que tapar). El fondo se
+ * desvanece hacia los bordes para que el tablero siga viéndose por los lados.
+ */
+function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
+  const turno = aviso?.raza ? COLOR_TABLERO[aviso.raza] : null;
+  const linea = turno?.claro ?? "#e8c468";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 -translate-y-1/2" role="status" aria-live="polite">
+      <AnimatePresence mode="wait">
+        {aviso && (
+          <motion.div
+            key={aviso.id}
+            className="relative flex items-center justify-center gap-[1.6cqmin] px-[13%] text-center"
+            style={{
+              paddingBlock: turno ? "2.4cqmin" : "2cqmin",
+              background: `linear-gradient(90deg, transparent 0%, ${FONDO_AVISO} 13%, ${FONDO_AVISO} 87%, transparent 100%)`,
+            }}
+            initial={{ opacity: 0, scaleX: 0.55 }}
+            animate={{ opacity: 1, scaleX: 1 }}
+            exit={{ opacity: 0, transition: { duration: 0.25 } }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            {[0, 1].map((i) => (
+              <span
+                key={i}
+                className={`absolute inset-x-0 h-px ${i ? "bottom-0" : "top-0"}`}
+                style={{ background: `linear-gradient(90deg, transparent 8%, ${linea} 30%, ${linea} 70%, transparent 92%)` }}
+              />
+            ))}
+            {aviso.raza && (
+              <img
+                src={RAZAS[aviso.raza].logo}
+                alt=""
+                className="shrink-0 object-contain"
+                style={{ width: "6.5cqmin", height: "6.5cqmin", filter: `drop-shadow(0 0 6px ${turno!.base})` }}
+              />
+            )}
+            <p
+              className="font-display leading-tight tracking-wide"
+              style={
+                turno
+                  ? { fontSize: "clamp(18px, 5.2cqmin, 44px)", color: turno.claro, textShadow: `0 0 14px ${turno.base}, 0 2px 4px #000` }
+                  : { fontSize: "clamp(13px, 3.1cqmin, 26px)", color: "#fff6e6", textShadow: "0 2px 4px #000" }
+              }
+            >
+              {aviso.texto}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
