@@ -6,6 +6,7 @@ import { RevealWords } from "../components/RevealWords";
 import { useGameStore } from "../game/store";
 import { RAZAS, type RazaId } from "../game/types";
 import { audioManager } from "../audio/audioManager";
+import { useOnline } from "../game/online/conexion";
 
 /** Texto de la pantalla final según la raza que ganó (el impacto en los demás). */
 const TEXTO_VICTORIA: Record<RazaId, string> = {
@@ -52,17 +53,30 @@ export function FinalScreen() {
     return () => clearTimeout(t);
   }, [ganador]);
 
-  const volverAlInicio = () => {
-    // Sonido del botón.
-    audioManager.playSfxBoton();
+  const origen = useGameStore((s) => s.origenFinal);
 
-    // Detiene el sonido de victoria y la narración (si seguía sonando) antes de cambiar de pantalla.
+  /** Corta el sonido de victoria y la narración (si seguía sonando) y cambia de pantalla. */
+  const irDesdeFinal = (destino: Parameters<typeof irA>[0]) => {
+    audioManager.playSfxBoton();
     audioManager.detenerMusica();
     audioManager.detenerNarracion();
-
-    // Regresa al inicio.
-    irA("inicio");
+    irA(destino);
   };
+
+  const volverAlInicio = () => {
+    // En línea, salir al inicio también es dejar la sala.
+    if (origen === "online") useOnline.getState().salir();
+    irDesdeFinal("inicio");
+  };
+
+  /** En línea: de vuelta a la selección de razas de la misma sala. */
+  const regresarASala = () => {
+    const o = useOnline.getState();
+    if (!o.sala && o.salaGuardada) o.unirse(o.salaGuardada);
+    irDesdeFinal("online");
+  };
+
+  const otraPartida = origen === "online" ? { texto: "Regresar a la sala", accion: regresarASala } : origen === "digital" ? { texto: "Volver a jugar", accion: () => irDesdeFinal("configDigital") } : null;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-noise" style={{ background: "var(--color-void-deep)" }}>
@@ -170,27 +184,48 @@ export function FinalScreen() {
           </p>
         </div>
 
-        <motion.button
-          onClick={volverAlInicio}
-          className="rounded-sm border px-9 py-3 font-display text-sm tracking-wide"
-          style={{
-            borderColor:
-              "color-mix(in srgb, var(--color-eclipse-gold) 65%, transparent)",
-            color: "var(--color-eclipse-gold)",
-          }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: [0.6, 1, 0.6] }}
-          transition={{
-            opacity: {
-              duration: 2.2,
-              repeat: Infinity,
-              delay: 5.6,
-            },
-          }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Volver al Santuario
-        </motion.button>
+        <div className="flex flex-col items-center gap-3 sm:flex-row">
+          {otraPartida && (
+            <motion.button
+              onClick={otraPartida.accion}
+              className="rounded-sm border px-9 py-3 font-display text-sm tracking-wide"
+              style={{
+                borderColor: "color-mix(in srgb, var(--color-eclipse-gold) 65%, transparent)",
+                color: "#1a1206",
+                background: "linear-gradient(180deg, #f3d98a, var(--color-eclipse-gold))",
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ opacity: { duration: 0.6, delay: 5.6 } }}
+              whileTap={{ scale: 0.95 }}
+            >
+              {otraPartida.texto}
+            </motion.button>
+          )}
+          <motion.button
+            onClick={volverAlInicio}
+            className="rounded-sm border px-9 py-3 font-display text-sm tracking-wide"
+            style={{
+              borderColor:
+                "color-mix(in srgb, var(--color-eclipse-gold) 65%, transparent)",
+              color: "var(--color-eclipse-gold)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: otraPartida ? 1 : [0.6, 1, 0.6] }}
+            transition={{
+              opacity: otraPartida
+                ? { duration: 0.6, delay: 5.6 }
+                : {
+                    duration: 2.2,
+                    repeat: Infinity,
+                    delay: 5.6,
+                  },
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            Volver al Santuario
+          </motion.button>
+        </div>
       </div>
       </div>
     </div>

@@ -16,11 +16,15 @@ const SIGUIENTE: Record<Asiento, Asiento> = { humano: "ia", ia: "nadie", nadie: 
 export function DigitalSetupScreen() {
   const irA = useGameStore((s) => s.irA);
   const iniciar = useDigitalStore((s) => s.iniciar);
-  const [asientos, setAsientos] = useState<Record<RazaId, Asiento>>({
-    humanos: "humano",
-    elfos: "humano",
-    enanos: "ia",
-    nomuertos: "ia",
+  // Al volver a jugar se parte de la mesa de la partida anterior.
+  const [asientos, setAsientos] = useState<Record<RazaId, Asiento>>(() => {
+    const { partida, modo } = useDigitalStore.getState();
+    if (partida && modo === "local") {
+      const previa = Object.fromEntries(ORDEN_RAZAS.map((r) => [r, "nadie"])) as Record<RazaId, Asiento>;
+      for (const j of partida.jugadores) previa[j.raza] = j.tipo;
+      return previa;
+    }
+    return { humanos: "humano", elfos: "humano", enanos: "ia", nomuertos: "ia" };
   });
 
   const activos = ORDEN_RAZAS.filter((r) => asientos[r] !== "nadie");

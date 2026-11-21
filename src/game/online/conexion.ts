@@ -6,6 +6,8 @@
 import { create } from "zustand";
 import type { RazaId } from "../types";
 import { useDigitalStore } from "../digital/store";
+import { useGameStore } from "../store";
+import { audioManager } from "../../audio/audioManager";
 import type { AccionJuego, MensajeCliente, MensajeServidor, VistaSala } from "./protocolo";
 
 /** Servidor publicado en Cloudflare (ver server/README.md). */
@@ -99,6 +101,13 @@ export const useOnline = create<OnlineState>((set, get) => {
         return;
       }
       if (msg.t === "sala") {
+        // Empezó una partida nueva mientras este jugador seguía en la pantalla de victoria.
+        const app = useGameStore.getState();
+        if (msg.sala.partida && msg.sala.partida.fase !== "fin" && (get().sala?.partida?.fase ?? "fin") === "fin" && app.estado === "final" && app.origenFinal === "online") {
+          audioManager.detenerMusica();
+          audioManager.detenerNarracion();
+          app.irA("digital");
+        }
         set({ sala: msg.sala });
         sincronizarPartida(msg.sala, get().jugadorId);
       } else if (msg.t === "error") {

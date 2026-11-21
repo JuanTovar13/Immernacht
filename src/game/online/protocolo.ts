@@ -25,7 +25,22 @@ export interface VistaSala {
   jugadores: JugadorSala[];
   asientos: Record<RazaId, Asiento>;
   partida: Partida | null;
+  /** Jugadores que marcaron "Listo". */
+  listos: string[];
+  /** Propuestas de intercambio de raza pendientes. */
+  propuestas: PropuestaCambio[];
+  /** Cuenta regresiva en marcha (un valor nuevo cada vez que arranca una), o null. */
+  cuenta: number | null;
 }
+
+/** `de` propone a `a` intercambiar sus razas (si `de` no tiene, le pide la suya). */
+export interface PropuestaCambio {
+  de: string;
+  a: string;
+}
+
+/** Segundos de la cuenta regresiva cuando todos están listos. */
+export const SEGUNDOS_CUENTA = 3;
 
 /** Acciones de juego (las mismas del modo local). */
 export type AccionJuego =
@@ -42,6 +57,14 @@ export type MensajeCliente =
   /** Solo el anfitrión: cambia un asiento sin jugador (libre → máquina → cerrado). */
   | { t: "cambiarAsiento"; raza: RazaId }
   | { t: "empezar" }
+  /** Marca o desmarca "Listo". Si todos lo están, empieza la cuenta regresiva. */
+  | { t: "listo"; valor: boolean }
+  /** Propone intercambiar razas con quien ocupa ese asiento. */
+  | { t: "proponerCambio"; raza: RazaId }
+  | { t: "responderCambio"; de: string; aceptar: boolean }
+  | { t: "cancelarCambio" }
+  /** Tras la victoria: la sala vuelve a la selección de razas. */
+  | { t: "volverASala" }
   | { t: "accion"; accion: AccionJuego }
   | { t: "salir" };
 

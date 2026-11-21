@@ -77,11 +77,8 @@ export function DigitalGameScreen() {
   useEffect(() => {
     if (fase !== "fin" || !partida?.ganador) return;
     const g = partida.ganador;
-    const t = setTimeout(() => {
-      partidaTerminada(g);
-      // En línea la sala ya no hace falta.
-      if (enLinea) useOnline.getState().salir();
-    }, 1800);
+    // En línea se sigue en la sala: desde la pantalla final se puede volver a ella.
+    const t = setTimeout(() => partidaTerminada(g, enLinea ? "online" : "digital"), 1800);
     return () => clearTimeout(t);
   }, [fase, partida?.ganador, partidaTerminada, enLinea]);
 

@@ -2,7 +2,10 @@ import { create } from "zustand";
 import { EVENTOS, ORDEN_RAZAS, type EventoDef, type RazaId } from "./types";
  
 /** "configDigital" y "digital" son la versión puramente digital (sin tablero físico). */
-export type EstadoApp = "inicio" | "preparacion" | "partida" | "evento" | "final" | "configDigital" | "digital" | "online";
+/** fisico: tablero físico con Arduino; digital: partida en este dispositivo; online: sala privada. */
+export type OrigenFinal = "fisico" | "digital" | "online";
+
+export type EstadoApp ="inicio" | "preparacion" | "partida" | "evento" | "final" | "configDigital" | "digital" | "online";
  
 interface GameState {
   estado: EstadoApp;
@@ -14,7 +17,9 @@ interface GameState {
  
   /** Raza que ganó (la reporta el Arduino). null si no se sabe (ej. botón de simulación). */
   ganador: RazaId | null;
- 
+  /** De qué modo viene la victoria (decide los botones de la pantalla final). */
+  origenFinal: OrigenFinal;
+
   /** Turno: la secuencia es siempre humanos → elfos → enanos → no-muertos → (repite).
    *  Lo único aleatorio es quién empieza (turnoIndice inicial). */
   turnoIndice: number;
@@ -30,7 +35,7 @@ interface GameState {
   /** Cierra el evento, vuelve a la partida y avanza el turno según la secuencia fija. */
   cerrarEvento: () => void;
   /** Se llamará cuando el Arduino confirme que las 4 fichas llegaron a la meta. */
-  partidaTerminada: (ganador?: RazaId) => void;
+  partidaTerminada: (ganador?: RazaId, origen?: OrigenFinal) => void;
   toggleAudio: () => void;
 }
  
@@ -40,6 +45,7 @@ export const useGameStore = create<GameState>((set) => ({
   eventoActual: null,
   eventoNulo: false,
   ganador: null,
+  origenFinal: "fisico",
   turnoIndice: 0,
   turnoActual: "humanos",
   audioActivo: true,
@@ -73,7 +79,7 @@ export const useGameStore = create<GameState>((set) => ({
       };
     }),
  
-  partidaTerminada: (ganador) => set({ estado: "final", ganador: ganador ?? null }),
+  partidaTerminada: (ganador, origen = "fisico") => set({ estado: "final", ganador: ganador ?? null, origenFinal: origen }),
   toggleAudio: () => set((s) => ({ audioActivo: !s.audioActivo })),
 }));
  

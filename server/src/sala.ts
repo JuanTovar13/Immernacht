@@ -8,7 +8,16 @@ import { DurableObject } from "cloudflare:workers";
 import * as motor from "../../src/game/digital/engine";
 import { elegirAccion } from "../../src/game/digital/bot";
 import { ORDEN_RAZAS, type RazaId } from "../../src/game/types";
-import type { AccionJuego, Asiento, CodigoError, MensajeCliente, MensajeServidor, VistaSala } from "../../src/game/online/protocolo";
+import {
+  SEGUNDOS_CUENTA,
+  type AccionJuego,
+  type Asiento,
+  type CodigoError,
+  type MensajeCliente,
+  type MensajeServidor,
+  type PropuestaCambio,
+  type VistaSala,
+} from "../../src/game/online/protocolo";
 import type { Partida } from "../../src/game/digital/engine";
 
 export interface Env {
@@ -28,7 +37,15 @@ interface EstadoSala {
   /** Desde cuándo está desconectado cada jugador. */
   desconectadoDesde: Record<string, number>;
   actividad: number;
+  /** Jugadores que marcaron "Listo" en la sala de espera. */
+  listos: string[];
+  propuestas: PropuestaCambio[];
+  /** Cuándo empezó la cuenta regresiva (todos listos), o null. */
+  cuentaDesde: number | null;
 }
+
+/** Margen tras la cuenta para que a todos les dé tiempo de ver el "1". */
+const MARGEN_CUENTA = 400;
 
 /** Ritmo de las jugadas automáticas (ms). */
 const RITMO_MAQUINA = 900;
@@ -54,7 +71,9 @@ export class Sala extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
-      this.estado = (await ctx.storage.get<EstadoSala>("estado")) ?? null;
+      const guardado = (await ctx.storage.get<EstadoSala>("estado")) ?? null;
+      // Salas guardadas antes de que existieran "Listo" y los intercambios.
+      this.estado = guardado && { ...guardado, listos: guardado.listos ?? [], propuestas: guardado.propuestas ?? [], cuentaDesde: guardado.cuentaDesde ?? null };
     });
   }
 
@@ -75,6 +94,9 @@ export class Sala extends DurableObject<Env> {
         eventoDesde: null,
         desconectadoDesde: {},
         actividad: Date.now(),
+        listos: [],
+        propuestas: [],
+        cuentaDesde: null,
       };
       await this.guardar();
       await this.programar();
@@ -112,7 +134,29 @@ export class Sala extends DurableObject<Env> {
       case "soltarRaza":
         if (e.partida) return;
         this.soltar(yo);
+        this.olvidarPropuestas(yo);
+        this.desmarcar(yo);
         return this.cambio();
+      case "listo":
+        if (e.partida) return;
+        e.listos = e.listos.filter((id) => id !== yo);
+        if (msg.valor) e.listos.push(yo);
+        return this.cambio();
+      case "proponerCambio":
+        return this.proponerCambio(ws, yo, msg.raza);
+      case "responderCambio": {
+        if (e.partida) return;
+        const p = e.propuestas.find((x) => x.de === msg.de && x.a === yo);
+        if (!p) return;
+        e.propuestas = e.propuestas.filter((x) => x !== p);
+        if (msg.aceptar) this.intercambiar(p.de, yo);
+        return this.cambio();
+      }
+      case "cancelarCambio":
+        e.propuestas = e.propuestas.filter((x) => x.de !== yo);
+        return this.cambio();
+      case "volverASala":
+        return this.volverASala(yo);
       case "cambiarAsiento":
         return this.cambiarAsiento(ws, yo, msg.raza);
       case "empezar":
@@ -192,7 +236,81 @@ export class Sala extends DurableObject<Env> {
     if (a.tipo === "nadie") return this.error(ws, "no-permitido", "El anfitrión cerró ese asiento.");
     this.soltar(yo);
     e.asientos[raza] = { tipo: "humano", jugadorId: yo };
+    this.olvidarPropuestas(yo);
+    this.desmarcar(yo);
     await this.cambio();
+  }
+
+  /** Quien cambia de raza deja de estar "Listo" (puede que aún no lo esté). */
+  private desmarcar(...ids: string[]) {
+    const e = this.estado!;
+    e.listos = e.listos.filter((id) => !ids.includes(id));
+  }
+
+  private olvidarPropuestas(...ids: string[]) {
+    const e = this.estado!;
+    e.propuestas = e.propuestas.filter((p) => !ids.includes(p.de) && !ids.includes(p.a));
+  }
+
+  private async proponerCambio(ws: WebSocket, yo: string, raza: RazaId) {
+    const e = this.estado!;
+    if (e.partida || !ORDEN_RAZAS.includes(raza)) return;
+    const a = e.asientos[raza];
+    if (a.tipo !== "humano" || a.jugadorId === yo) return this.error(ws, "invalido", "Ese asiento no tiene a otro jugador.");
+    const otro = a.jugadorId;
+    // Si el otro ya me lo había propuesto, ambos quieren: se cambia directamente.
+    if (e.propuestas.some((p) => p.de === otro && p.a === yo)) {
+      this.intercambiar(otro, yo);
+    } else {
+      e.propuestas = [...e.propuestas.filter((p) => p.de !== yo), { de: yo, a: otro }];
+    }
+    await this.cambio();
+  }
+
+  /** `de` se queda la raza de `a`; `a` se queda la de `de` (o ninguna, si `de` no tenía). */
+  private intercambiar(de: string, a: string) {
+    const e = this.estado!;
+    const razaDe = this.razaDe(de);
+    const razaA = this.razaDe(a);
+    if (!razaA) return;
+    e.asientos[razaA] = { tipo: "humano", jugadorId: de };
+    if (razaDe) e.asientos[razaDe] = { tipo: "humano", jugadorId: a };
+    this.olvidarPropuestas(de, a);
+    this.desmarcar(de, a);
+  }
+
+  /** Tras la victoria, la sala vuelve a la selección de razas con los mismos jugadores. */
+  private async volverASala(yo: string) {
+    const e = this.estado!;
+    if (!e.partida || e.partida.fase !== "fin" || !e.jugadores.some((j) => j.id === yo)) return;
+    e.partida = null;
+    e.eventoDesde = null;
+    // Los asientos que no jugaron vuelven a estar libres para quien quiera sentarse.
+    for (const r of ORDEN_RAZAS) if (e.asientos[r].tipo === "nadie") e.asientos[r] = { tipo: "libre" };
+    e.listos = [];
+    e.propuestas = [];
+    e.cuentaDesde = null;
+    await this.cambio();
+  }
+
+  /** Arranca o cancela la cuenta regresiva según si todos los presentes están listos. */
+  private revisarCuenta() {
+    const e = this.estado!;
+    const conectados = this.conectados();
+    const presentes = e.jugadores.filter((j) => conectados.has(j.id));
+    const activos = ORDEN_RAZAS.filter((r) => e.asientos[r].tipo === "humano" || e.asientos[r].tipo === "ia");
+    const todos =
+      !e.partida &&
+      activos.length >= 2 &&
+      presentes.some((j) => this.razaDe(j.id)) &&
+      presentes.every((j) => e.listos.includes(j.id));
+    if (!todos) e.cuentaDesde = null;
+    else if (e.cuentaDesde === null) e.cuentaDesde = Date.now();
+  }
+
+  private finCuenta(): number | null {
+    const c = this.estado?.cuentaDesde;
+    return c == null ? null : c + SEGUNDOS_CUENTA * 1000 + MARGEN_CUENTA;
   }
 
   private async cambiarAsiento(ws: WebSocket, yo: string, raza: RazaId) {
@@ -203,6 +321,8 @@ export class Sala extends DurableObject<Env> {
     if (!a || a.tipo === "humano") return;
     const siguiente: Record<"libre" | "ia" | "nadie", Asiento> = { libre: { tipo: "ia" }, ia: { tipo: "nadie" }, nadie: { tipo: "libre" } };
     e.asientos[raza] = siguiente[a.tipo];
+    // Cambió la mesa: si había cuenta regresiva, vuelve a empezar.
+    e.cuentaDesde = null;
     await this.cambio();
   }
 
@@ -210,13 +330,23 @@ export class Sala extends DurableObject<Env> {
     const e = this.estado!;
     if (e.partida) return;
     if (e.anfitrion !== yo) return this.error(ws, "no-permitido", "Solo el anfitrión puede empezar.");
+    if (!this.iniciarPartida()) return this.error(ws, "invalido", "Se necesitan al menos 2 facciones.");
+    await this.cambio();
+  }
+
+  /** Crea la partida con los asientos actuales. false si no hay facciones suficientes. */
+  private iniciarPartida(): boolean {
+    const e = this.estado!;
     const activos = ORDEN_RAZAS.filter((r) => e.asientos[r].tipo === "humano" || e.asientos[r].tipo === "ia");
-    if (activos.length < 2) return this.error(ws, "invalido", "Se necesitan al menos 2 facciones.");
+    if (activos.length < 2) return false;
     // Los asientos que nadie tomó no juegan.
     for (const r of ORDEN_RAZAS) if (e.asientos[r].tipo === "libre") e.asientos[r] = { tipo: "nadie" };
     e.partida = motor.crearPartida(activos.map((r) => ({ raza: r, tipo: e.asientos[r].tipo === "humano" ? "humano" : "ia" })));
     e.ultimoCambio = Date.now();
-    await this.cambio();
+    e.listos = [];
+    e.propuestas = [];
+    e.cuentaDesde = null;
+    return true;
   }
 
   /** Abandona la sala. En plena partida, una máquina toma su lugar. */
@@ -231,6 +361,8 @@ export class Sala extends DurableObject<Env> {
     } else {
       this.soltar(yo);
     }
+    this.olvidarPropuestas(yo);
+    this.desmarcar(yo);
     e.jugadores = e.jugadores.filter((j) => j.id !== yo);
     delete e.desconectadoDesde[yo];
     if (e.anfitrion === yo) e.anfitrion = e.jugadores[0]?.id ?? null;
@@ -294,6 +426,15 @@ export class Sala extends DurableObject<Env> {
       this.estado = null;
       return;
     }
+    const fin = this.finCuenta();
+    if (fin !== null && fin <= ahora + 20) {
+      // Todos listos y la cuenta terminó: se abre el Portal.
+      this.revisarCuenta();
+      if (e.cuentaDesde !== null && this.iniciarPartida()) {
+        await this.cambio();
+        return;
+      }
+    }
     const auto = this.automatica();
     if (auto && auto.cuando <= ahora + 20) {
       const nueva = aplicar(e.partida!, auto.accion);
@@ -312,7 +453,8 @@ export class Sala extends DurableObject<Env> {
     if (!e) return;
     const auto = this.automatica();
     const caduca = e.actividad + CADUCIDAD;
-    await this.ctx.storage.setAlarm(Math.max(Date.now() + 10, Math.min(auto?.cuando ?? caduca, caduca)));
+    const proxima = Math.min(auto?.cuando ?? caduca, this.finCuenta() ?? caduca, caduca);
+    await this.ctx.storage.setAlarm(Math.max(Date.now() + 10, proxima));
   }
 
   /* ---------------- Envío ---------------- */
@@ -336,11 +478,15 @@ export class Sala extends DurableObject<Env> {
       jugadores: e.jugadores.map((j) => ({ ...j, conectado: conectados.has(j.id) })),
       asientos: e.asientos,
       partida: e.partida,
+      listos: e.listos,
+      propuestas: e.propuestas,
+      cuenta: e.cuentaDesde,
     };
   }
 
   /** Guarda, avisa a todos y programa lo siguiente. */
   private async cambio() {
+    if (this.estado) this.revisarCuenta();
     await this.guardar();
     const msg: MensajeServidor = { t: "sala", sala: this.vista() };
     const texto = JSON.stringify(msg);
