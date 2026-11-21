@@ -41,6 +41,12 @@ export const REL_MIN = -4; // casillas detrás de la Salida (solo se llega por e
 export const CUARTO: Record<RazaId, number> = { elfos: 0, nomuertos: 1, humanos: 2, enanos: 3 };
 export const RAZA_DE_CUARTO: RazaId[] = ["elfos", "nomuertos", "humanos", "enanos"];
 
+/** Giro de la vista (grados) para que el cuarto de `raza` quede abajo a la derecha, donde está el de los Humanos. */
+export function giroParaRaza(raza: RazaId): number {
+  const g = 90 * (CUARTO[raza] - CUARTO.humanos);
+  return ((g + 540) % 360) - 180;
+}
+
 /** Colores del tablero (los del arte del tablero físico, no los acentos de la UI). */
 export const COLOR_TABLERO: Record<RazaId, { base: string; claro: string; oscuro: string }> = {
   elfos: { base: "#2e9a78", claro: "#4fc39b", oscuro: "#17604a" },

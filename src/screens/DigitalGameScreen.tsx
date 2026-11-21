@@ -8,7 +8,7 @@ import { EventOverlay } from "../components/digital/EventOverlay";
 import { RAZAS, type RazaId } from "../game/types";
 import { useGameStore } from "../game/store";
 import { useDigitalStore } from "../game/digital/store";
-import { COLOR_TABLERO, REL_META_INI } from "../game/digital/board";
+import { COLOR_TABLERO, REL_META_INI, giroParaRaza } from "../game/digital/board";
 import {
   BONO_CAPTURA,
   fichasDe,
@@ -314,6 +314,7 @@ export function DigitalGameScreen() {
               baseActiva={sacarDisponible}
               derrumbes={partida.derrumbes}
               fortalezas={fortalezasActivas(partida)}
+              giro={enLinea && misRazas[0] ? giroParaRaza(misRazas[0]) : 0}
               onFicha={onFicha}
               onDestino={moverA}
               onBase={() => {

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { memo, useState } from "react";
+import { createContext, memo, useContext, useState } from "react";
 import { RAZAS, type RazaId } from "../../game/types";
 import {
   BASE_CUARTO0,
@@ -46,10 +46,15 @@ interface BoardProps {
   onFicha: (id: string) => void;
   onDestino: (m: Movimiento) => void;
   onBase: () => void;
+  /** Giro de la vista en grados (múltiplo de 90): en línea, la raza de cada jugador queda abajo a la derecha. */
+  giro?: number;
 }
 
+/** Giro de la vista: los textos, emblemas y fichas lo deshacen para verse siempre derechos. */
+const GiroVista = createContext(0);
+
 export function Board(props: BoardProps) {
-  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase } = props;
+  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0 } = props;
   const lugares = useLugares(fichas);
   const fichaSel = fichas.find((f) => f.id === seleccion);
 
@@ -69,6 +74,9 @@ export function Board(props: BoardProps) {
         </filter>
       </defs>
 
+      <GiroVista.Provider value={giro}>
+      <g transform={`rotate(${giro} ${TAM / 2} ${TAM / 2})`}>
+
       {/* Marco */}
       <rect x={-8} y={-8} width={TAM + 16} height={TAM + 16} rx={16} fill="#e8c468" />
       <rect x={0} y={0} width={TAM} height={TAM} rx={8} fill={PISTA} />
@@ -82,9 +90,11 @@ export function Board(props: BoardProps) {
       {[0, 1, 2, 3].map((q) =>
         [0, 5, 14].map((k) => {
           const c = rotar(CELDAS_CUARTO0[k].centro, q);
-          let ang = CELDAS_CUARTO0[k].anguloTexto - 90 * q;
+          // Ángulo en pantalla (con el giro de la vista), siempre legible; luego se descuenta el giro.
+          let ang = CELDAS_CUARTO0[k].anguloTexto - 90 * q + giro;
           ang = ((ang % 360) + 360) % 360;
           if (ang > 90 && ang <= 270) ang -= 180;
+          ang -= giro;
           return (
             <text
               key={`${q}-${k}`}
@@ -118,6 +128,7 @@ export function Board(props: BoardProps) {
               y={c.y - 17}
               width={34}
               height={34}
+              transform={`rotate(${-giro} ${c.x} ${c.y})`}
               opacity={razasEnJuego.includes(raza) ? 0.35 : 0.15}
               style={{ pointerEvents: "none" }}
             />
@@ -187,6 +198,7 @@ export function Board(props: BoardProps) {
                 stroke="#1a1426"
                 strokeWidth={3.5}
                 paintOrder="stroke"
+                transform={`rotate(${-giro} ${c.x} ${c.y})`}
                 style={{ pointerEvents: "none" }}
               >
                 {m.valor}
@@ -194,6 +206,8 @@ export function Board(props: BoardProps) {
             </g>
           );
         })}
+      </g>
+      </GiroVista.Provider>
     </svg>
   );
 }
@@ -673,6 +687,7 @@ function Portal() {
 }
 
 function BaseActiva({ raza, onClick }: { raza: RazaId; onClick: () => void }) {
+  const giro = useContext(GiroVista);
   const q = CUARTO[raza];
   const a = rotar({ x: 0, y: 0 }, q);
   const b = rotar({ x: BASE_RECT0.w, y: BASE_RECT0.h }, q);
@@ -705,6 +720,7 @@ function BaseActiva({ raza, onClick }: { raza: RazaId; onClick: () => void }) {
         stroke="#1a1426"
         strokeWidth={4}
         paintOrder="stroke"
+        transform={`rotate(${-giro} ${x + BASE_RECT0.w / 2} ${y + BASE_RECT0.h / 2})`}
         style={{ pointerEvents: "none" }}
       >
         Sacar ficha
@@ -787,6 +803,7 @@ function FichaToken({
   seleccionada: boolean;
   onClick: () => void;
 }) {
+  const giro = useContext(GiroVista);
   // Recuerda la casilla anterior para animar el recorrido paso a paso.
   const [mov, setMov] = useState(() => ({ rel: ficha.rel, camino: [puntoFicha(ficha.raza, ficha.rel, ficha.n)] }));
   if (mov.rel !== ficha.rel) {
@@ -822,6 +839,8 @@ function FichaToken({
           transition={{ duration: 1.1, repeat: Infinity }}
         />
       )}
+      {/* El dibujo de la ficha (y su sombra) siempre derecho, aunque la vista esté girada */}
+      <g transform={`rotate(${-giro})`}>
       <motion.g animate={{ scale: seleccionada ? 1.18 : 1 }} transition={{ type: "spring", stiffness: 300, damping: 18 }}>
         {/* Escudo de Luz (dorado) y Simbiosis de Enredaderas (verde) usan la misma aura,
             detrás del ícono; si la ficha tiene las dos, la verde va un poco más afuera. */}
@@ -847,6 +866,7 @@ function FichaToken({
         )}
         {enMeta && <circle r={19} fill="none" stroke="#ffe9a8" strokeWidth={1.5} opacity={0.8} />}
       </motion.g>
+      </g>
      </motion.g>
     </motion.g>
   );
