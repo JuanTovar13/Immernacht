@@ -90,10 +90,15 @@ export function DigitalGameScreen() {
   const avisoId = partida?.aviso?.id;
   const ultimoAviso = useRef<number | undefined>(undefined);
   useEffect(() => {
-    const a = useDigitalStore.getState().partida?.aviso;
-    if (!a || a.id === ultimoAviso.current) return;
-    ultimoAviso.current = a.id;
-    empujarAviso({ texto: a.texto });
+    const p = useDigitalStore.getState().partida;
+    if (!p?.aviso || p.aviso.id === ultimoAviso.current) return;
+    // Partida nueva: el contador vuelve a empezar.
+    if (p.aviso.id < (ultimoAviso.current ?? -1)) ultimoAviso.current = undefined;
+    // Una jugada puede dejar varios avisos (p. ej. un premio perdido y otro ganado).
+    const nuevos = (p.avisos?.length ? p.avisos : [p.aviso]).filter((a) => a.id > (ultimoAviso.current ?? -1));
+    if (!nuevos.length) return;
+    ultimoAviso.current = nuevos[nuevos.length - 1].id;
+    nuevos.forEach((a) => empujarAviso({ texto: a.texto }));
   }, [avisoId]);
 
   // Cada aviso se queda unos segundos; si hay otros esperando, pasa más rápido.
@@ -223,12 +228,8 @@ export function DigitalGameScreen() {
       return;
     }
     if (!movibles.has(id)) return;
-    const opciones = movs.filter((m) => m.fichaId === id);
-    // Con una sola opción de dados, la ficha va directo a su casilla.
-    if (opciones.length === 1) {
-      moverA(opciones[0]);
-      return;
-    }
+    // Siempre se marca primero dónde caería (también con premios o con un solo
+    // dado libre); la ficha se mueve al tocar la casilla de destino.
     audioManager.playSfxBoton();
     setSeleccion((s) => (s === id ? null : id));
   };
@@ -466,6 +467,9 @@ let idAviso = 0;
 const ESPERA_RECORDATORIO = 20000;
 const TITULO_TURNO = "⚔ ¡Tu turno! · Immernacht";
 const FONDO_AVISO = "rgba(9, 7, 20, 0.9)";
+/** Espacio a cada lado del texto del aviso, y cuánto de él ocupa el degradado. */
+const MARGEN_AVISO = "6cqmin";
+const FUNDIDO_AVISO = "4.5cqmin";
 
 /**
  * Aviso sobre la franja horizontal del centro del tablero (los carriles de meta
@@ -476,15 +480,17 @@ function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
   const turno = aviso?.raza ? COLOR_TABLERO[aviso.raza] : null;
   const linea = turno?.claro ?? "#e8c468";
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 -translate-y-1/2" role="status" aria-live="polite">
+    <div className="pointer-events-none absolute inset-x-0 top-1/2 z-30 flex -translate-y-1/2 justify-center" role="status" aria-live="polite">
       <AnimatePresence mode="wait">
         {aviso && (
           <motion.div
             key={aviso.id}
-            className="relative flex items-center justify-center gap-[1.6cqmin] px-[13%] text-center"
+            className="relative flex max-w-[92%] items-center justify-center gap-[0.8cqmin] text-center"
             style={{
-              paddingBlock: turno ? "2.4cqmin" : "2cqmin",
-              background: `linear-gradient(90deg, transparent 0%, ${FONDO_AVISO} 13%, ${FONDO_AVISO} 87%, transparent 100%)`,
+              // El fondo abraza al texto; a cada lado deja un margen que se desvanece.
+              paddingBlock: turno ? "1.2cqmin" : "1cqmin",
+              paddingInline: MARGEN_AVISO,
+              background: `linear-gradient(90deg, transparent 0, ${FONDO_AVISO} ${FUNDIDO_AVISO}, ${FONDO_AVISO} calc(100% - ${FUNDIDO_AVISO}), transparent 100%)`,
             }}
             initial={{ opacity: 0, scaleX: 0.55 }}
             animate={{ opacity: 1, scaleX: 1 }}
@@ -495,7 +501,7 @@ function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
               <span
                 key={i}
                 className={`absolute inset-x-0 h-px ${i ? "bottom-0" : "top-0"}`}
-                style={{ background: `linear-gradient(90deg, transparent 8%, ${linea} 30%, ${linea} 70%, transparent 92%)` }}
+                style={{ background: `linear-gradient(90deg, transparent 0, ${linea} ${MARGEN_AVISO}, ${linea} calc(100% - ${MARGEN_AVISO}), transparent 100%)` }}
               />
             ))}
             {aviso.raza && (
@@ -503,15 +509,15 @@ function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
                 src={RAZAS[aviso.raza].logo}
                 alt=""
                 className="shrink-0 object-contain"
-                style={{ width: "6.5cqmin", height: "6.5cqmin", filter: `drop-shadow(0 0 6px ${turno!.base})` }}
+                style={{ width: "3.3cqmin", height: "3.3cqmin", filter: `drop-shadow(0 0 6px ${turno!.base})` }}
               />
             )}
             <p
               className="font-display leading-tight tracking-wide"
               style={
                 turno
-                  ? { fontSize: "clamp(18px, 5.2cqmin, 44px)", color: turno.claro, textShadow: `0 0 14px ${turno.base}, 0 2px 4px #000` }
-                  : { fontSize: "clamp(13px, 3.1cqmin, 26px)", color: "#fff6e6", textShadow: "0 2px 4px #000" }
+                  ? { fontSize: "clamp(13px, 2.6cqmin, 22px)", color: turno.claro, textShadow: `0 0 10px ${turno.base}, 0 1px 3px #000` }
+                  : { fontSize: "clamp(11px, 1.6cqmin, 14px)", color: "#fff6e6", textShadow: "0 1px 3px #000" }
               }
             >
               {aviso.texto}

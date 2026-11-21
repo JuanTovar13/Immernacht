@@ -173,6 +173,8 @@ export interface Partida {
   ultimaTirada: { raza: RazaId; orig: [number, number]; efectivos: [number, number]; n: number } | null;
   /** Aviso breve para mostrar en pantalla (cambia el id cada vez). */
   aviso: { id: number; texto: string } | null;
+  /** Todos los avisos de la última acción, en orden (una jugada puede dar varios). */
+  avisos?: { id: number; texto: string }[];
   contador: number;
 }
 
@@ -202,6 +204,7 @@ function clonar(p: Partida): Partida {
     forzadas: [...(p.forzadas ?? [])],
     bonos: p.bonos.map((b) => ({ ...b })),
     log: [...p.log],
+    avisos: [],
   };
 }
 
@@ -213,6 +216,7 @@ function registrar(p: Partida, texto: string, raza?: RazaId) {
 function avisar(p: Partida, texto: string) {
   p.contador += 1;
   p.aviso = { id: p.contador, texto };
+  p.avisos = [...(p.avisos ?? []), p.aviso];
 }
 
 export function jugadorActual(p: Partida): Jugador {
@@ -594,19 +598,21 @@ export function tirar(prev: Partida): Partida {
   const maldito = j.maldicion > 0 ? ` (dados a la mitad: ${efectivos[0]} y ${efectivos[1]})` : "";
   registrar(p, `${nombre(j.raza)} lanzan ${orig[0]} y ${orig[1]}${p.esPar ? " — ¡pares!" : ""}${maldito}`, j.raza);
 
-  if (hayAcciones(p)) return p;
+  if (hayAcciones(p)) {
+    if (debeRomper(p)) avisar(p, "Tu fortaleza cae: mueve una de sus fichas.");
+    return p;
+  }
 
   if (p.esPar) {
-    avisar(p, "Pares, pero no hay movimientos posibles. Vuelves a lanzar.");
+    avisar(p, "No hay movimientos posibles.");
     return finTirada(p);
   }
+  // Tiros de salida: sin aviso, el texto junto a los dados ya cuenta los intentos.
   if (!tieneEnRecorrido(p, j.raza)) {
     if (p.intentos > 0) {
       p.fase = "tirar";
-      avisar(p, `Sin 5. Te ${p.intentos === 1 ? "queda 1 intento" : `quedan ${p.intentos} intentos`}.`);
       return p;
     }
-    avisar(p, salidaBloqueada(p) ? "Tu Salida está llena." : "Sin 5 esta vez. Pasa el turno.");
     return terminarTurno(p);
   }
   avisar(p, "No hay movimientos posibles.");
@@ -691,10 +697,17 @@ function entrarBono(p: Partida, tras: "continuar" | "avanzar"): Partida {
   p.fase = "bono";
   while (p.bonos.length && movimientosBono(p).length === 0) {
     const perdido = p.bonos.shift()!;
-    avisar(p, `Ninguna ficha puede avanzar ${perdido.valor} casillas: el premio se pierde.`);
+    avisar(p, `Ninguna ficha puede avanzar ${perdido.valor} casillas`);
   }
   if (!p.bonos.length) return salirBono(p);
-  avisar(p, `¡Premio! Mueve una ficha ${p.bonos[0].valor} casillas.`);
+  const { valor, motivo } = p.bonos[0];
+  const raza = nombre(jugadorActual(p).raza);
+  avisar(
+    p,
+    motivo === "meta"
+      ? `¡Los ${raza} obtienen ${valor} puntos de movimiento por llegar al portal!`
+      : `¡Los ${raza} obtienen ${valor} movimientos por capturar un enemigo!`
+  );
   return p;
 }
 
@@ -717,7 +730,7 @@ function finTirada(p: Partida): Partida {
     p.usados = [false, false];
     p.fichaLiberada = null;
     p.intentos = intentosIniciales(p, jugadorActual(p).raza);
-    avisar(p, "¡Pares! Vuelves a lanzar.");
+    // Sin aviso: el botón de lanzar ya brilla para volver a tirar.
     return p;
   }
   return terminarTurno(p);
