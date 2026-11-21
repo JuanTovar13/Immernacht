@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { StarField } from "../components/StarField";
 import { InfoModal } from "../components/InfoModal";
 import { Board } from "../components/digital/Board";
@@ -23,8 +23,7 @@ import {
 } from "../game/digital/engine";
 import { elegirAccion } from "../game/digital/bot";
 import { audioManager } from "../audio/audioManager";
-import { MODOS_EVENTOS, useAjustes } from "../game/ajustes";
-import { ETIQUETA_MODO, IconoModo } from "../components/ControlesAjustes";
+import { useAjustes } from "../game/ajustes";
 import { useOnline } from "../game/online/conexion";
 import { COLOR_DEBILITADO, IconoDebilitado } from "../components/digital/IconoDebilitado";
 
@@ -168,7 +167,6 @@ export function DigitalGameScreen() {
   }, [miTurnoEnLinea, razaTurno]);
   const ajustesAbiertos = useAjustes((s) => s.panelAbierto);
   const reglasAbiertas = useAjustes((s) => s.reglasAbiertas);
-  const abrirReglas = useAjustes((s) => s.abrirReglas);
   useEffect(() => {
     // En línea las máquinas las mueve el servidor.
     if (!partida || !esIA || enLinea || reglasAbiertas || salirAbierto || ajustesAbiertos) return;
@@ -285,10 +283,24 @@ export function DigitalGameScreen() {
       />
       <StarField count={18} />
 
+      {/* Salir: solo en la esquina superior izquierda (los demás botones van a la derecha) */}
+      <button
+        onClick={() => {
+          audioManager.playSfxBoton();
+          setSalirAbierto(true);
+        }}
+        className="absolute left-3 top-3 z-40 flex h-9 w-9 items-center justify-center rounded-sm border border-white/15 bg-black/30 text-[color:var(--color-parchment-dim)] backdrop-blur-sm transition-colors hover:text-[color:var(--color-parchment)] sm:left-5 sm:top-5 sm:h-11 sm:w-11"
+        aria-label="Salir de la partida"
+        title="Salir de la partida"
+      >
+        <IconoSalida />
+      </button>
+
       <div className="relative flex h-full w-full flex-col landscape:flex-row">
-        {/* Tablero (en vertical deja libre la franja de arriba para los controles de la esquina) */}
+        {/* Tablero (en vertical deja libre la franja de arriba para los botones de las esquinas;
+            en horizontal, el lado izquierdo para el botón de Salir) */}
         <div
-          className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2 portrait:pt-14 landscape:p-3 sm:portrait:pt-[4.5rem]"
+          className="flex min-h-0 min-w-0 flex-1 items-center justify-center p-2 portrait:pt-14 landscape:p-3 landscape:pl-14 sm:portrait:pt-[4.5rem] sm:landscape:pl-[4.5rem]"
           style={{ containerType: "size" }}
         >
           <div className="relative" style={{ width: "min(100cqw, 100cqh)", height: "min(100cqw, 100cqh)" }}>
@@ -339,15 +351,6 @@ export function DigitalGameScreen() {
                 </p>
               </div>
             </motion.div>
-            {/* Reglas y Salir arriba, la velocidad de los eventos debajo y a lo ancho:
-                así le queda espacio al nombre de la raza de turno. */}
-            <div className="grid shrink-0 grid-cols-2 gap-1.5">
-              <BotonChico onClick={() => abrirReglas(true)}>Reglas</BotonChico>
-              <BotonChico onClick={() => setSalirAbierto(true)}>Salir</BotonChico>
-              <div className="col-span-2 grid">
-                <BotonModoChico />
-              </div>
-            </div>
           </div>
 
           <div
@@ -526,49 +529,13 @@ function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
   );
 }
 
-/** Cambia el modo de los eventos (Normal → Auto → Rápido), junto a Reglas y Salir. */
-function BotonModoChico() {
-  const modo = useAjustes((s) => s.modoEventos);
-  const siguiente = useAjustes((s) => s.siguienteModo);
-  const info = MODOS_EVENTOS.find((m) => m.id === modo)!;
+/** Icono de salida: una puerta con una flecha que sale (no una X de cerrar). */
+function IconoSalida() {
   return (
-    <BotonChico
-      onClick={siguiente}
-      style={modo !== "normal" ? { color: "var(--color-eclipse-gold)", borderColor: "color-mix(in srgb, var(--color-eclipse-gold) 50%, transparent)" } : undefined}
-      etiqueta={`Modo de eventos: ${info.nombre}. ${info.detalle} Toca para cambiar.`}
-      titulo={`Eventos: ${info.nombre} — ${info.detalle}`}
-    >
-      <IconoModo modo={modo} />
-      {ETIQUETA_MODO[modo]}
-    </BotonChico>
-  );
-}
-
-function BotonChico({
-  children,
-  onClick,
-  style,
-  etiqueta,
-  titulo,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  style?: CSSProperties;
-  etiqueta?: string;
-  titulo?: string;
-}) {
-  return (
-    <button
-      onClick={() => {
-        audioManager.playSfxBoton();
-        onClick();
-      }}
-      style={style}
-      aria-label={etiqueta}
-      title={titulo}
-      className="flex items-center justify-center gap-1 rounded-sm border border-white/15 px-2.5 py-1 font-display text-[11px] tracking-wide text-[color:var(--color-parchment-dim)] sm:px-3 sm:py-1.5 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-    >
-      {children}
-    </button>
+    <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M10 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H10" />
+      <path d="M14 8l4 4-4 4" />
+      <path d="M18 12H9" />
+    </svg>
   );
 }

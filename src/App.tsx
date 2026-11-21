@@ -40,9 +40,9 @@ function App() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Sonido, modo de eventos y ajustes: siempre en la esquina superior derecha */}
-      {/* En la partida digital las reglas ya tienen su botón en la cabecera. */}
-      <ControlesFlotantes conModo={estado === "partida" || estado === "evento"} conReglas={estado !== "digital"} />
+      {/* Sonido, modo de eventos y ajustes: siempre en la esquina superior derecha.
+          En la partida digital van en una sola fila de iconos (Salir queda a la izquierda). */}
+      <ControlesFlotantes conModo={estado === "partida" || estado === "evento" || estado === "digital"} compacto={estado === "digital"} />
       <PanelAjustes />
       <PanelReglas />
     </div>

@@ -116,8 +116,8 @@ export function BotonReglas() {
   );
 }
 
-/** Cambia el modo de los eventos: Normal → Auto → Rápido. */
-export function BotonModo() {
+/** Cambia el modo de los eventos: Normal → Auto → Rápido. `soloIcono`: sin texto y algo más ancho. */
+export function BotonModo({ soloIcono = false }: { soloIcono?: boolean }) {
   const modo = useAjustes((s) => s.modoEventos);
   const siguiente = useAjustes((s) => s.siguienteModo);
   const info = MODOS_EVENTOS.find((m) => m.id === modo)!;
@@ -127,19 +127,34 @@ export function BotonModo() {
         audioManager.playSfxBoton();
         siguiente();
       }}
-      className={`${estiloBoton} px-2.5 font-display text-[11px] tracking-wide sm:px-4 sm:text-sm`}
+      className={soloIcono ? `${estiloBoton} w-12 sm:w-14` : `${estiloBoton} px-2.5 font-display text-[11px] tracking-wide sm:px-4 sm:text-sm`}
       style={modo !== "normal" ? { color: "var(--color-eclipse-gold)", borderColor: "color-mix(in srgb, var(--color-eclipse-gold) 50%, transparent)" } : undefined}
       aria-label={`Modo de eventos: ${info.nombre}. ${info.detalle} Toca para cambiar.`}
       title={`Eventos: ${info.nombre} — ${info.detalle}`}
     >
       <IconoModo modo={modo} />
-      {ETIQUETA_MODO[modo]}
+      {!soloIcono && ETIQUETA_MODO[modo]}
     </button>
   );
 }
 
-/** Controles fijos en la esquina superior derecha, iguales en todas las pantallas. */
-export function ControlesFlotantes({ conModo, conReglas = true }: { conModo: boolean; conReglas?: boolean }) {
+/**
+ * Controles fijos en la esquina superior derecha, iguales en todas las pantallas.
+ * `compacto` (partida digital): una sola fila de iconos con la velocidad a la izquierda.
+ */
+export function ControlesFlotantes({ conModo, conReglas = true, compacto = false }: { conModo: boolean; conReglas?: boolean; compacto?: boolean }) {
+  if (compacto) {
+    return (
+      <div className="pointer-events-none absolute right-3 top-3 z-40 flex sm:right-5 sm:top-5">
+        <div className="pointer-events-auto flex items-start gap-1.5 sm:gap-2">
+          {conModo && <BotonModo soloIcono />}
+          {conReglas && <BotonReglas />}
+          <BotonSilencio />
+          <BotonAjustes />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="pointer-events-none absolute right-3 top-3 z-40 flex sm:right-5 sm:top-5">
       {/* En PC el botón de velocidad baja a una segunda fila para no ocupar el ancho del panel;
