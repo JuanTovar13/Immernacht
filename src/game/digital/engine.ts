@@ -597,7 +597,7 @@ export function tirar(prev: Partida): Partida {
   p.intentos -= 1;
   p.ultimaTirada = { raza: j.raza, orig, efectivos, n: (p.ultimaTirada?.n ?? 0) + 1 };
 
-  const maldito = j.maldicion > 0 ? ` (dados a la mitad: ${efectivos[0]} y ${efectivos[1]})` : "";
+  const maldito = j.maldicion > 0 ? ` (ralentizados: ${efectivos[0]} y ${efectivos[1]})` : "";
   registrar(p, `${nombre(j.raza)} lanzan ${orig[0]} y ${orig[1]}${p.esPar ? " — ¡pares!" : ""}${maldito}`, j.raza);
 
   p.paresSeguidos = p.esPar ? (p.paresSeguidos ?? 0) + 1 : 0;
@@ -1069,7 +1069,7 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       if (efectoPropio === "negativo") desplazar(p, objetivo, -1);
       if (efectoPropio === "positivo") detalle.push("Dura 1 turno en lugar de 2 (+1 a favor).");
       if (efectoPropio === "negativo") detalle.push("Además retrocede 1 casilla (−1 en contra).");
-      return { resumen: `Los ${nombre(raza)} tiran con los dados a la mitad ${turnos === 1 ? "su próximo turno" : "sus próximos 2 turnos"}.`, detalle };
+      return { resumen: `Los ${nombre(raza)} quedan ralentizados ${turnos === 1 ? "durante su próximo turno" : "durante sus próximos 2 turnos"}.`, detalle };
     }
     case "ataque-de-bestia":
     case "estallido-runico": {
@@ -1140,9 +1140,9 @@ export function textoEvento(evento: EventoDef, e: EfectoMatriz, extremos?: { ade
         : [S("Tu ficha cambia de lugar con la más cercana a 5 casillas o menos y "), N(m > 0 ? "avanza 1 casilla" : "retrocede 1 casilla", e), S(".")];
     case "maldicion-de-polimorfia":
     case "pantano-de-lianas":
-      if (m > 0) return [S("Tus dados valen la mitad "), N("1 turno", e), S(".")];
-      if (m < 0) return [S("Tus dados valen la mitad 2 turnos y "), N("retrocedes 1 casilla", e), S(".")];
-      return [S("Tus dados valen la mitad 2 turnos.")];
+      if (m > 0) return [S("Quedas ralentizado "), N("1 turno", e), S(".")];
+      if (m < 0) return [S("Quedas ralentizado 2 turnos y "), N("retrocedes 1 casilla", e), S(".")];
+      return [S("Quedas ralentizado 2 turnos.")];
     case "ataque-de-bestia":
     case "estallido-runico":
       return [S("Tu ficha retrocede "), N(casillas(5 - m), e), S(". Si cae sobre otra, la come.")];

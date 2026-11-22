@@ -8,7 +8,7 @@ import { EventOverlay } from "../components/digital/EventOverlay";
 import { RAZAS, type RazaId } from "../game/types";
 import { useGameStore } from "../game/store";
 import { useDigitalStore } from "../game/digital/store";
-import { COLOR_TABLERO, REL_META_INI, giroParaRaza } from "../game/digital/board";
+import { COLOR_TABLERO, CUARTO, REL_META_INI, giroParaRaza } from "../game/digital/board";
 import {
   BONO_CAPTURA,
   fichasDe,
@@ -116,6 +116,8 @@ export function DigitalGameScreen() {
   const esMio = !enLinea || (!!jugador && misRazas.includes(jugador.raza));
   const puedoJugar = !esIA && esMio;
   const nombreTurno = jugador ? (nombres[jugador.raza] ?? "Jugador") : "";
+  /** Giro del tablero: en línea, la raza propia queda abajo a la derecha. */
+  const giro = enLinea && misRazas[0] ? giroParaRaza(misRazas[0]) : 0;
 
   // En línea: sonido y aviso cuando le toca a este jugador, un recordatorio si
   // se queda quieto, y el título de la pestaña parpadea si está en otra pestaña.
@@ -314,7 +316,7 @@ export function DigitalGameScreen() {
               baseActiva={sacarDisponible}
               derrumbes={partida.derrumbes}
               fortalezas={fortalezasActivas(partida)}
-              giro={enLinea && misRazas[0] ? giroParaRaza(misRazas[0]) : 0}
+              giro={giro}
               onFicha={onFicha}
               onDestino={moverA}
               onBase={() => {
@@ -344,14 +346,15 @@ export function DigitalGameScreen() {
                 <p className="text-[11px] text-[color:var(--color-muted)]">
                   {esIA ? "🤖 Máquina" : enLinea ? `👤 ${nombreTurno}${esMio ? " (tú)" : ""}` : "👤 Jugador"}
                   {jugador.maldicion > 0 && (
-                    <span style={{ color: COLOR_DEBILITADO }} title="Dados a la mitad">
+                    <span style={{ color: COLOR_DEBILITADO }} title="ralentizado: dados a la mitad">
                       {" · "}
-                      <IconoDebilitado titulo="Dados a la mitad" /> Debilitado ({jugador.maldicion})
+                      <IconoDebilitado titulo="ralentizado" /> ralentizado ({jugador.maldicion})
                     </span>
                   )}
                 </p>
               </div>
             </motion.div>
+            <OrdenTurnos razas={partida.jugadores.map((j) => j.raza)} activa={raza} giro={giro} />
           </div>
 
           <div
@@ -391,31 +394,6 @@ export function DigitalGameScreen() {
               ) : null}
               <p className="text-xs leading-snug text-[color:var(--color-parchment-dim)]">{pista}</p>
             </div>
-          </div>
-
-          {/* Marcador */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {partida.jugadores.map((j, i) => {
-              const fs = fichasDe(partida, j.raza);
-              const meta = fs.filter((f) => f.rel !== null && f.rel >= REL_META_INI).length;
-              const base = fs.filter((f) => f.rel === null).length;
-              const activo = i === partida.turno;
-              return (
-                <div
-                  key={j.raza}
-                  className="flex flex-col items-center rounded-sm border py-1.5"
-                  style={{
-                    borderColor: activo ? COLOR_TABLERO[j.raza].claro : "rgba(255,255,255,0.08)",
-                    background: activo ? `color-mix(in srgb, ${COLOR_TABLERO[j.raza].base} 18%, transparent)` : "transparent",
-                  }}
-                >
-                  <img src={RAZAS[j.raza].logo} alt={RAZAS[j.raza].nombre} className="h-6 w-6 object-contain" />
-                  <span className="mt-0.5 text-[10px] text-[color:var(--color-parchment-dim)]">
-                    ⌂{base} · ✦{meta}/4
-                  </span>
-                </div>
-              );
-            })}
           </div>
 
           {/* Crónica */}
@@ -537,6 +515,46 @@ function AvisoCentral({ aviso }: { aviso?: AvisoTablero }) {
 }
 
 /** Icono de salida: una puerta con una flecha que sale (no una X de cerrar). */
+/**
+ * Orden de los turnos en una cuadrícula de 2×2: cada raza está en la misma
+ * esquina que su base en el tablero (con el giro de la vista), así que el
+ * turno pasa en sentido horario igual que en el tablero.
+ */
+function OrdenTurnos({ razas, activa, giro }: { razas: RazaId[]; activa: RazaId; giro: number }) {
+  // Esquina en sentido horario desde arriba a la izquierda: 0 ↖, 1 ↗, 2 ↘, 3 ↙.
+  const esquina = (r: RazaId) => ((((4 - CUARTO[r]) % 4) + Math.round(giro / 90)) % 4 + 4) % 4;
+  const celdas: (RazaId | null)[] = [null, null, null, null];
+  for (const r of razas) celdas[esquina(r)] = r;
+  // Posición en la cuadrícula (filas de izquierda a derecha): ↖ ↗ / ↙ ↘
+  const enCuadricula = [celdas[0], celdas[1], celdas[3], celdas[2]];
+  return (
+    <div className="grid shrink-0 grid-cols-2 gap-1" aria-label="Orden de los turnos">
+      {enCuadricula.map((r, i) =>
+        r ? (
+          <div
+            key={r}
+            className="flex h-8 w-8 items-center justify-center rounded-sm border transition-colors"
+            title={RAZAS[r].nombre}
+            style={{
+              borderColor: r === activa ? COLOR_TABLERO[r].claro : "rgba(255,255,255,0.08)",
+              background: r === activa ? `color-mix(in srgb, ${COLOR_TABLERO[r].base} 28%, transparent)` : "transparent",
+            }}
+          >
+            <img
+              src={RAZAS[r].logo}
+              alt={RAZAS[r].nombre}
+              className="h-5 w-5 object-contain"
+              style={{ opacity: r === activa ? 1 : 0.55 }}
+            />
+          </div>
+        ) : (
+          <div key={`vacia-${i}`} className="h-8 w-8 rounded-sm border border-dashed border-white/5" />
+        )
+      )}
+    </div>
+  );
+}
+
 function IconoSalida() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

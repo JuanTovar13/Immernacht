@@ -150,7 +150,7 @@ function Reglas() {
           <T>atrapadas</T> no se mueven. Si cae en tu <T>Salida</T>, puedes seguir sacando fichas, pero se quedan ahí hasta que pase.
         </li>
         <li>
-          Hay eventos que otorgan el estado <T>Ralentizado</T>: un jugador ralentizado verá el valor de sus dados reducido a la mitad, redondeado
+          Hay eventos que otorgan el estado <T>ralentizado</T>: un jugador ralentizado verá el valor de sus dados reducido a la mitad, redondeado
           hacia arriba.
         </li>
         <li>
@@ -222,10 +222,10 @@ function Matriz() {
       <dl className="space-y-2.5 text-[12px] leading-snug text-[color:var(--color-parchment-dim)]">
         <Convencion e="positivo" nombre="A favor">
           Si el evento te hace avanzar, avanzas 1 casilla más; si te hace retroceder, 1 menos. Si no mueve la ficha (<T>escudos</T> e <T>intercambios</T>), avanzas 1.
-          Quedar <T>atrapado</T> o <T>Ralentizado</T> dura 1 turno en lugar de 2.
+          Quedar <T>atrapado</T> o <T>ralentizado</T> dura 1 turno en lugar de 2.
         </Convencion>
         <Convencion e="negativo" nombre="En contra">
-          Si el evento te hace avanzar, avanzas 1 casilla menos; si te hace retroceder, 1 más. Si no la mueve (<T>escudos</T>, <T>intercambios</T> y <T>Ralentizado</T>), retrocedes 1.
+          Si el evento te hace avanzar, avanzas 1 casilla menos; si te hace retroceder, 1 más. Si no la mueve (<T>escudos</T>, <T>intercambios</T> y <T>ralentizado</T>), retrocedes 1.
         </Convencion>
         <Convencion e="neutral" nombre="Sin cambio">
           El evento se aplica tal cual.

@@ -6,7 +6,7 @@ export const COLOR_DEBILITADO = "#e58a6f";
  * Sirve para la Maldición de Polimorfia, el Pantano de Lianas y cualquier otro
  * efecto que reste velocidad o fuerza, sin atarse a la imagen de un sapo.
  */
-export function IconoDebilitado({ className = "h-3 w-3", titulo = "Debilitado" }: { className?: string; titulo?: string }) {
+export function IconoDebilitado({ className = "h-3 w-3", titulo = "ralentizado" }: { className?: string; titulo?: string }) {
   return (
     <svg viewBox="0 0 16 16" className={`inline-block shrink-0 align-[-0.15em] ${className}`} role="img" aria-label={titulo}>
       <title>{titulo}</title>

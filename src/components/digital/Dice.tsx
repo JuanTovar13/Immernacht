@@ -43,8 +43,8 @@ export function Dado({
         )}
       </motion.svg>
       {valor !== null && efectivo !== null && efectivo !== valor && (
-        <span className="mt-0.5 flex items-center gap-0.5 text-[10px]" style={{ color: COLOR_DEBILITADO }} title="Dados a la mitad">
-          <IconoDebilitado className="h-2.5 w-2.5" titulo="Dados a la mitad" /> {efectivo}
+        <span className="mt-0.5 flex items-center gap-0.5 text-[10px]" style={{ color: COLOR_DEBILITADO }} title="ralentizado: dados a la mitad">
+          <IconoDebilitado className="h-2.5 w-2.5" titulo="ralentizado" /> {efectivo}
         </span>
       )}
     </div>
