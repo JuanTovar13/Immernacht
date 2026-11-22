@@ -47,10 +47,10 @@
   --terrenal-glow: #e0b98a;
 
   /* --- Identidad por raza (uso sutil: acentos, iconografía) --- */
-  --raza-humanos: #d8b26a;
-  --raza-elfos: #7fbf8f;
-  --raza-enanos: #c97b4a;
-  --raza-nomuertos: #7a8ba0;
+  --raza-humanos: #4fa6e0;
+  --raza-elfos: #3fb48b;
+  --raza-enanos: #e99a4c;
+  --raza-nomuertos: #d9566e;
 
   --font-display: "Cinzel", "Iowan Old Style", serif;
   --font-decorative: "Cinzel Decorative", "Cinzel", "Iowan Old Style", serif;
