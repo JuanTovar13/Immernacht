@@ -2,9 +2,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { OpenPortal } from "../components/OpenPortal";
 import { VictoryBurst } from "../components/VictoryBurst";
+import { FondoVictoria } from "../components/VictoriaRaza";
 import { RevealWords } from "../components/RevealWords";
 import { useGameStore } from "../game/store";
-import { RAZAS, type RazaId } from "../game/types";
+import { RAZAS, type Raza, type RazaId } from "../game/types";
 import { audioManager } from "../audio/audioManager";
 import { useOnline } from "../game/online/conexion";
 
@@ -83,14 +84,18 @@ export function FinalScreen() {
       {/* Capa de fondo con su propio recorte: las ondas del sol nunca agrandan
           el área de scroll ni mueven la pantalla. */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {/* Fondo dorado triunfal — el más luminoso de toda la app */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: "radial-gradient(140% 100% at 50% 30%, #3a2f16 0%, #1c1710 45%, var(--color-void-deep) 85%)",
-          }}
-        />
-        <VictoryBurst />
+        {/* Fondo de la raza ganadora (su ambiente y sus partículas, según su texto final) */}
+        {ganador ? (
+          <FondoVictoria raza={ganador} />
+        ) : (
+          <>
+            <div
+              className="absolute inset-0"
+              style={{ background: "radial-gradient(140% 100% at 50% 30%, #3a2f16 0%, #1c1710 45%, var(--color-void-deep) 85%)" }}
+            />
+            <VictoryBurst />
+          </>
+        )}
         <div className="absolute inset-0" style={{ boxShadow: "inset 0 0 160px 50px rgba(0,0,0,0.75)" }} />
       </div>
 
@@ -129,35 +134,7 @@ export function FinalScreen() {
             )}
           </AnimatePresence>
 
-          {raza && !mostrarLetrero && (
-            <motion.div
-              className="absolute flex w-52 flex-col items-center gap-1.5 rounded-lg border-2 px-5 py-5 sm:w-60"
-              style={{
-                borderColor: `var(${raza.colorVar})`,
-                background: "linear-gradient(180deg, rgba(20,16,10,0.88), rgba(8,8,16,0.92))",
-                boxShadow: `0 0 0 4px rgba(232,196,104,0.35), 0 0 38px color-mix(in srgb, var(${raza.colorVar}) 65%, transparent), 0 12px 30px rgba(0,0,0,0.6)`,
-                backdropFilter: "blur(6px)",
-                WebkitBackdropFilter: "blur(6px)",
-              }}
-              initial={{ opacity: 0, scale: 0.6, rotateX: 50 }}
-              animate={{ opacity: 1, scale: 1, rotateX: 0 }}
-              transition={{ duration: 0.7, ease: "backOut" }}
-            >
-              <span className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-eclipse-gold)]">Victoria</span>
-              <motion.img
-                src={raza.logo}
-                alt={`Emblema de ${raza.nombre}`}
-                className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-                style={{ filter: `drop-shadow(0 0 14px color-mix(in srgb, var(${raza.colorVar}) 80%, transparent))` }}
-                animate={{ scale: [1, 1.05, 1] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-              />
-              <p className="text-center font-display text-2xl leading-tight tracking-wide" style={{ color: `var(${raza.colorVar})` }}>
-                {raza.nombre}
-              </p>
-              <p className="text-center text-xs text-[color:var(--color-parchment-dim)]">han abierto el Portal</p>
-            </motion.div>
-          )}
+          {raza && !mostrarLetrero && <TarjetaGanador raza={raza} texto={TEXTO_VICTORIA[raza.id]} />}
         </motion.div>
 
         <div className="flex flex-col items-center gap-3">
@@ -175,13 +152,12 @@ export function FinalScreen() {
             <RevealWords texto="El Portal se ha Abierto" delayStart={3.1} stagger={0.12} />
           </h1>
 
-          <p className="max-w-md text-center text-sm text-[color:var(--color-parchment-dim)] sm:text-base">
-            <RevealWords
-              texto={raza ? TEXTO_VICTORIA[raza.id] : TEXTO_VICTORIA_GENERICO}
-              delayStart={3.8}
-              stagger={0.05}
-            />
-          </p>
+          {/* Con ganador, su texto está al reverso de la tarjeta; sin ganador, va aquí. */}
+          {!raza && (
+            <p className="max-w-md text-center text-sm text-[color:var(--color-parchment-dim)] sm:text-base">
+              <RevealWords texto={TEXTO_VICTORIA_GENERICO} delayStart={3.8} stagger={0.05} />
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">
@@ -229,5 +205,74 @@ export function FinalScreen() {
       </div>
       </div>
     </div>
+  );
+}
+
+/** Tarjeta del ganador: al tocarla se da la vuelta y muestra el texto de su victoria. */
+function TarjetaGanador({ raza, texto }: { raza: Raza; texto: string }) {
+  const [volteada, setVolteada] = useState(false);
+  const cara = {
+    borderColor: `var(${raza.colorVar})`,
+    background: "linear-gradient(180deg, rgba(20,16,10,0.94), rgba(8,8,16,0.96))",
+    boxShadow: `0 0 0 4px rgba(232,196,104,0.35), 0 0 38px color-mix(in srgb, var(${raza.colorVar}) 65%, transparent), 0 12px 30px rgba(0,0,0,0.6)`,
+    backfaceVisibility: "hidden" as const,
+    WebkitBackfaceVisibility: "hidden" as const,
+  };
+
+  return (
+    <motion.div
+      className="absolute w-56 sm:w-64"
+      style={{ perspective: 900 }}
+      initial={{ opacity: 0, scale: 0.6, rotateX: 50 }}
+      animate={{ opacity: 1, scale: 1, rotateX: 0 }}
+      transition={{ duration: 0.7, ease: "backOut" }}
+    >
+      <motion.button
+        type="button"
+        onClick={() => {
+          audioManager.playSfxBoton();
+          setVolteada((v) => !v);
+        }}
+        aria-label={volteada ? "Ver el emblema" : "Leer lo que significa esta victoria"}
+        className="relative block w-full cursor-pointer text-left"
+        style={{ transformStyle: "preserve-3d" }}
+        animate={{ rotateY: volteada ? 180 : 0 }}
+        transition={{ duration: 0.7, ease: [0.4, 0, 0.2, 1] }}
+        whileTap={{ scale: 0.97 }}
+      >
+        {/* Anverso: emblema y nombre (define el tamaño de la tarjeta) */}
+        <div className="flex min-h-[17rem] flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-5 py-5" style={cara}>
+          <span className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-eclipse-gold)]">Victoria</span>
+          <motion.img
+            src={raza.logo}
+            alt={`Emblema de ${raza.nombre}`}
+            className="h-24 w-24 object-contain sm:h-28 sm:w-28"
+            style={{ filter: `drop-shadow(0 0 14px color-mix(in srgb, var(${raza.colorVar}) 80%, transparent))` }}
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <p className="text-center font-display text-2xl leading-tight tracking-wide" style={{ color: `var(${raza.colorVar})` }}>
+            {raza.nombre}
+          </p>
+          <p className="text-center text-xs text-[color:var(--color-parchment-dim)]">han abierto el Portal</p>
+          <motion.span
+            className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-eclipse-gold)]"
+            animate={{ opacity: [0.45, 1, 0.45] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            Toca para leer ↻
+          </motion.span>
+        </div>
+
+        {/* Reverso: el texto de la victoria */}
+        <div
+          className="absolute inset-0 flex flex-col items-center justify-center gap-2 overflow-y-auto rounded-lg border-2 px-4 py-4"
+          style={{ ...cara, transform: "rotateY(180deg)" }}
+        >
+          <img src={raza.logo} alt="" className="h-8 w-8 shrink-0 object-contain opacity-80" />
+          <p className="text-center text-[12px] leading-snug text-[color:var(--color-parchment)] sm:text-[13px]">{texto}</p>
+        </div>
+      </motion.button>
+    </motion.div>
   );
 }
