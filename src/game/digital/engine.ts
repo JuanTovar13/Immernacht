@@ -152,6 +152,8 @@ export interface Partida {
   dadosOriginales: [number, number] | null;
   usados: [boolean, boolean];
   esPar: boolean;
+  /** Pares seguidos en este turno: al tercero, magia negra (ver PARES_MAGIA_NEGRA). */
+  paresSeguidos?: number;
   fichaLiberada: string | null;
   /** Lanzamientos que quedan en este turno (3 si no tiene fichas en el recorrido). */
   intentos: number;
@@ -598,6 +600,9 @@ export function tirar(prev: Partida): Partida {
   const maldito = j.maldicion > 0 ? ` (dados a la mitad: ${efectivos[0]} y ${efectivos[1]})` : "";
   registrar(p, `${nombre(j.raza)} lanzan ${orig[0]} y ${orig[1]}${p.esPar ? " — ¡pares!" : ""}${maldito}`, j.raza);
 
+  p.paresSeguidos = p.esPar ? (p.paresSeguidos ?? 0) + 1 : 0;
+  if (p.paresSeguidos >= PARES_MAGIA_NEGRA) return magiaNegra(p);
+
   if (hayAcciones(p)) {
     if (debeRomper(p)) avisar(p, "Tu fortaleza cae: mueve una de sus fichas.");
     return p;
@@ -616,6 +621,32 @@ export function tirar(prev: Partida): Partida {
     return terminarTurno(p);
   }
   avisar(p, "No hay movimientos posibles.");
+  return terminarTurno(p);
+}
+
+/** Pares seguidos en un mismo turno que delatan el uso de magia negra. */
+export const PARES_MAGIA_NEGRA = 3;
+
+/**
+ * Tercer par seguido: los dados no se juegan, la última ficha movida vuelve a
+ * su base (si sigue en el recorrido; el carril final está a salvo) y el turno termina.
+ */
+function magiaNegra(p: Partida): Partida {
+  const j = jugadorActual(p);
+  const raza = nombre(j.raza);
+  const ficha = p.fichas.find((f) => f.id === j.ultimaFicha);
+  p.esPar = false;
+  p.usados = [true, true];
+  if (ficha && enRecorrido(ficha)) {
+    devolverABase(ficha);
+    sincronizarFortalezas(p);
+    actualizarBloqueos(p);
+    registrar(p, `¡Magia negra! Tres pares seguidos: una ficha de los ${raza} vuelve a su base.`, j.raza);
+    avisar(p, `¡Tres pares seguidos! Los ${raza} usaron magia negra y su última ficha movida regresa a la base.`);
+  } else {
+    registrar(p, `¡Magia negra! Tres pares seguidos: los ${raza} pierden el resto del turno.`, j.raza);
+    avisar(p, `¡Tres pares seguidos! Los ${raza} usaron magia negra y pierden el resto del turno.`);
+  }
   return terminarTurno(p);
 }
 
@@ -809,6 +840,7 @@ function avanzarTurno(p: Partida): Partida {
   p.dadosOriginales = null;
   p.usados = [false, false];
   p.esPar = false;
+  p.paresSeguidos = 0;
   p.fichaLiberada = null;
   p.bonos = [];
   p.trasBono = "continuar";

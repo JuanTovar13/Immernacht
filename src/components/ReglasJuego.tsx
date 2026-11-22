@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO, type EfectoMatriz, type TipoEvento } from "../game/types";
 import { EFECTO_INFO } from "../game/lore";
-import { BONO_CAPTURA, BONO_META, FORTALEZAS } from "../game/digital/engine";
+import { BONO_CAPTURA, BONO_META, FORTALEZAS, PARES_MAGIA_NEGRA } from "../game/digital/engine";
 import { useAjustes } from "../game/ajustes";
 import { audioManager } from "../audio/audioManager";
 import { InfoModal } from "./InfoModal";
@@ -90,6 +90,10 @@ function Reglas() {
         <li>Mueve una ficha con la suma de los dados, o dos fichas con un dado cada una.</li>
         <li>
           Con <T>pares</T> vuelves a lanzar.
+        </li>
+        <li>
+          Sacar <T>pares</T> {PARES_MAGIA_NEGRA} veces seguidas delata el uso de <T>magia negra</T>: esa tirada no se juega, tu última ficha
+          movida regresa directamente a la <T>base</T> y tu turno termina. Si esa ficha está en el <T>carril final</T>, está a salvo.
         </li>
       </Seccion>
 
