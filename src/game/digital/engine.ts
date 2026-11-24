@@ -230,6 +230,15 @@ export function fichasDe(p: Partida, raza: RazaId): Ficha[] {
 }
 
 const enRecorrido = (f: Ficha) => f.rel !== null && f.rel <= REL_ENTRADA;
+
+/** ¿Puede la ficha moverse a esa casilla del recorrido por un intercambio? Solo si
+ *  llega avanzando o retrocediendo lo justo, sin pasarse de la entrada a su carril
+ *  (ni saltar hacia atrás por encima de su salida hasta quedar junto a la entrada). */
+function cambioValido(f: Ficha, idxNuevo: number): boolean {
+  const idxActual = loopIndex(f.raza, f.rel!);
+  const delta = ((((idxNuevo - idxActual) % LOOP) + LOOP + LOOP / 2) % LOOP) - LOOP / 2;
+  return relDesdeLoop(f.raza, idxNuevo) === f.rel! + delta;
+}
 const enMeta = (f: Ficha) => f.rel !== null && f.rel >= REL_META_INI;
 
 function tieneEnRecorrido(p: Partida, raza: RazaId) {
@@ -1048,10 +1057,15 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       const cercanas = enTablero
         .filter((f) => f.id !== objetivo.id && !derrumbeEn(p, loopIndex(f.raza, f.rel!)))
         .map((f) => ({ f, d: distanciaCircular(loopIndex(f.raza, f.rel!), idx) }))
-        .filter(({ d }) => d >= 1 && d <= 5)
+        .filter(({ d }) => d >= 1 && d <= 5);
+      // Solo cuentan los intercambios posibles: ninguna de las dos fichas puede
+      // pasarse de la entrada a su carril (ni saltar hacia atrás hasta ella).
+      const validas = cercanas
+        .filter(({ f }) => cambioValido(objetivo, loopIndex(f.raza, f.rel!)) && cambioValido(f, idx))
         .sort((a, b) => a.d - b.d || Math.random() - 0.5);
       if (!cercanas.length) return { resumen: "No hay fichas a 5 casillas o menos: no pasa nada.", detalle };
-      const { f: otra, d } = cercanas[0];
+      if (!validas.length) return { resumen: "Ninguna ficha cercana puede cambiar de lugar sin pasarse de su carril: no pasa nada.", detalle };
+      const { f: otra, d } = validas[0];
       const idxOtra = loopIndex(otra.raza, otra.rel!);
       otra.rel = relDesdeLoop(otra.raza, idx);
       objetivo.rel = relDesdeLoop(raza, idxOtra);
