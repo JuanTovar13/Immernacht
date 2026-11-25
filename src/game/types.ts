@@ -43,8 +43,8 @@ export const TIPOS_EVENTO: Record<TipoEvento, TipoEventoInfo> = {
 export const MATRIZ_EFECTOS: Record<RazaId, Record<TipoEvento, EfectoMatriz>> = {
   humanos: { celestial: "positivo", natural: "neutral", arcano: "negativo", terrenal: "neutral" },
   elfos: { celestial: "neutral", natural: "positivo", arcano: "neutral", terrenal: "negativo" },
-enanos: { id: "enanos", nombre: "Enanos", icono: "⚒️", colorVar: "--raza-enanos", logo: "/logos/enanos.png" },
-  enanos: { celestial: "negativo", natural: "neutral", arcano: "positivo", terrenal: "neutral" },
+  enanos: { celestial: "neutral", natural: "negativo", arcano: "neutral", terrenal: "positivo" },
+  nomuertos: { celestial: "negativo", natural: "neutral", arcano: "positivo", terrenal: "neutral" },
 };
 
 export interface EventoDef {
