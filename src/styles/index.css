@@ -46,6 +46,11 @@
   --terrenal-deep: #4a3b2e;
   --terrenal-glow: #e0b98a;
 
+  /* Eventos globales: el eclipse (sin matriz) */
+  --global-bright: #f2d27a;
+  --global-deep: #1a1208;
+  --global-glow: #ffe9a8;
+
   /* --- Identidad por raza (uso sutil: acentos, iconografía) --- */
   --raza-humanos: #4fa6e0;
   --raza-elfos: #3fb48b;

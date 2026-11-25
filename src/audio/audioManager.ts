@@ -66,9 +66,17 @@ const SFX_PROVISIONAL: Record<string, string> = {
   "himno-de-los-angeles": "juicio-divino",
   "cadenas-sagradas": "escudo-de-luz",
   estampida: "ataque-de-bestia",
+  // Eventos globales (sonidos provisionales)
+  tornado: "rafaga-huracanada",
+  "retroceso-del-tiempo": "intercambio-dimensional",
+  "niebla-espesa": "escudo-de-luz",
+  "luna-sangrienta": "ataque-de-bestia",
+  "sombra-del-eclipse": "maldicion-de-polimorfia",
+  "llamado-del-portal": "juicio-divino",
 };
 
-const SFX_TIPO: Record<TipoEvento, string> = {
+const SFX_TIPO: Record<TipoEvento | "global", string> = {
+  global: "/audio/sfx/tipos/arcano-reveal.mp3",
   celestial: "/audio/sfx/tipos/celestial-reveal.mp3",
   natural: "/audio/sfx/tipos/natural-reveal.mp3",
   arcano: "/audio/sfx/tipos/arcano-reveal.mp3",
@@ -190,7 +198,7 @@ export const audioManager = {
   },
 
   /** Whoosh temático de revelación — depende del TIPO (celestial/natural/arcano/terrenal). */
-  playSfxRevelacion(tipo: TipoEvento) {
+  playSfxRevelacion(tipo: TipoEvento | "global") {
     playSfxRastreado(SFX_TIPO[tipo], 0.6);
   },
 

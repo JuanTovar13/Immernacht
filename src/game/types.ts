@@ -43,8 +43,8 @@ export const TIPOS_EVENTO: Record<TipoEvento, TipoEventoInfo> = {
 export const MATRIZ_EFECTOS: Record<RazaId, Record<TipoEvento, EfectoMatriz>> = {
   humanos: { celestial: "positivo", natural: "neutral", arcano: "negativo", terrenal: "neutral" },
   elfos: { celestial: "neutral", natural: "positivo", arcano: "neutral", terrenal: "negativo" },
+enanos: { id: "enanos", nombre: "Enanos", icono: "⚒️", colorVar: "--raza-enanos", logo: "/logos/enanos.png" },
   enanos: { celestial: "negativo", natural: "neutral", arcano: "positivo", terrenal: "neutral" },
-  nomuertos: { celestial: "neutral", natural: "negativo", arcano: "neutral", terrenal: "positivo" },
 };
 
 export interface EventoDef {
@@ -73,3 +73,34 @@ export const EVENTOS: EventoDef[] = [
   { id: "estampida", nombre: "Estampida", tipo: "natural", descripcion: "Una manada desbocada cruza el campo de batalla.", efecto: "La ficha más adelantada retrocede 3 casillas y la más rezagada avanza 3." },
   { id: "derrumbe-de-rocas", nombre: "Derrumbe de Rocas", tipo: "terrenal", descripcion: "Una avalancha bloquea el camino de repente.", efecto: "Esa casilla y la siguiente se bloquean 2 turnos." },
 ];
+
+/**
+ * Eventos globales: muy raros, pueden ocurrir al final de cualquier turno y
+ * afectan a todo el tablero por igual. La matriz de efectos no aplica.
+ */
+export interface EventoGlobalDef {
+  id: string;
+  nombre: string;
+  tipo: "global";
+  descripcion: string;
+  efecto: string;
+}
+
+export const EVENTOS_GLOBALES: EventoGlobalDef[] = [
+  { id: "tornado", nombre: "Tornado", tipo: "global", descripcion: "Un tornado nacido del Portal barre el mundo entero.", efecto: "Todas las fichas del recorrido avanzan 2 casillas, sin entrar al carril final." },
+  { id: "retroceso-del-tiempo", nombre: "Retroceso del Tiempo", tipo: "global", descripcion: "El Portal invierte por un instante el curso del tiempo.", efecto: "Todas las fichas del recorrido retroceden 2 casillas, salvo las que están en una salida o un refugio." },
+  { id: "niebla-espesa", nombre: "Niebla Espesa", tipo: "global", descripcion: "Una niebla impenetrable cubre el campo de batalla.", efecto: "Durante una ronda completa nadie puede capturar." },
+  { id: "luna-sangrienta", nombre: "Luna Sangrienta", tipo: "global", descripcion: "La luna se tiñe de rojo y ninguna magia protectora resiste su furia.", efecto: "Durante una ronda completa los escudos, las protecciones y las fortalezas no surten efecto." },
+  { id: "sombra-del-eclipse", nombre: "Sombra del Eclipse", tipo: "global", descripcion: "La sombra del eclipse cae sobre todos los pueblos.", efecto: "Todos los jugadores quedan ralentizados durante su próximo turno." },
+  { id: "llamado-del-portal", nombre: "Llamado del Portal", tipo: "global", descripcion: "El Portal llama a quienes aún esperan su oportunidad.", efecto: "Cada raza con fichas en la base saca una a su salida, si hay sitio." },
+];
+
+/** Aspecto de la carta de los eventos globales (no es un tipo de la matriz). */
+export const INFO_GLOBAL = {
+  id: "global" as const,
+  nombre: "Global",
+  icono: "🌘",
+  brightVar: "--global-bright",
+  deepVar: "--global-deep",
+  glowVar: "--global-glow",
+};

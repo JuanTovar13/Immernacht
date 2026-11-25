@@ -4,7 +4,7 @@
    Reglas tomadas de "Instrucciones" y "Descripción y reglas",
    con los ajustes acordados con el equipo.
    ============================================================ */
-import { EVENTOS, MATRIZ_EFECTOS, RAZAS, type EfectoMatriz, type EventoDef, type RazaId } from "../types";
+import { EVENTOS, EVENTOS_GLOBALES, MATRIZ_EFECTOS, RAZAS, type EfectoMatriz, type EventoDef, type EventoGlobalDef, type RazaId } from "../types";
 import {
   CUARTO,
   distanciaCircular,
@@ -21,6 +21,11 @@ import {
 
 /** Probabilidad de que ocurra un evento al terminar un turno (igual que en la app del tablero físico). */
 export const PROB_EVENTO = 0.35;
+/**
+ * Eventos globales: probabilidad al final de cada turno (muy raro: puede no salir
+ * en toda la partida). Es un objeto para poder probar variantes en las simulaciones.
+ */
+export const EVENTO_GLOBAL: { prob: number; solo?: string } = { prob: 0.01 };
 /** Valor que hay que sacar (en un dado o en la suma) para sacar una ficha de la base. */
 export const VALOR_SALIDA = 5;
 /** Casillas que avanza el premio por comer una ficha. */
@@ -115,6 +120,13 @@ interface EfectoPendiente {
   bonos: Premio[];
   log: EntradaLog[];
   contador: number;
+  global?: EfectoGlobal | null;
+}
+
+/** Evento global con duración (Niebla Espesa, Luna Sangrienta): turnos que le quedan. */
+export interface EfectoGlobal {
+  id: string;
+  turnos: number;
 }
 
 /** Trozo del texto de un evento; con `e` se pinta en verde (a favor) o rojo (en contra). */
@@ -124,7 +136,7 @@ export interface Segmento {
 }
 
 export interface ResultadoEvento {
-  evento: EventoDef;
+  evento: EventoDef | EventoGlobalDef;
   raza: RazaId; // jugador que terminó el turno
   /** Efecto del evento con los números ya ajustados por la matriz (lo que se muestra en la tarjeta). */
   texto: Segmento[];
@@ -170,6 +182,8 @@ export interface Partida {
   /** Historial para que un mismo evento no se repita tan seguido. */
   pesosEvento: Record<string, { nivel: number; restantes: number }>;
   ganador: RazaId | null;
+  /** Evento global en curso (solo los que duran una ronda). */
+  global?: EfectoGlobal | null;
   log: EntradaLog[];
   /** Última tirada (se sigue mostrando aunque el turno haya pasado). */
   ultimaTirada: { raza: RazaId; orig: [number, number]; efectivos: [number, number]; n: number } | null;
@@ -250,7 +264,7 @@ function ocupantes(p: Partida, idx: number): Ficha[] {
   return p.fichas.filter((f) => enRecorrido(f) && loopIndex(f.raza, f.rel!) === idx);
 }
 
-const resisteSinGastar = (f: Ficha) => f.escudo || f.proteccion;
+const resisteSinGastar = (p: Partida, f: Ficha) => !lunaSangrienta(p) && (f.escudo || f.proteccion);
 
 /** Derrumbe activo que cubre la casilla idx, si lo hay. */
 function derrumbeEn(p: Partida, idx: number): Derrumbe | undefined {
@@ -321,7 +335,7 @@ function sincronizarFortalezas(p: Partida) {
 
 /** ¿La fortaleza bloquea el paso? Sobre un derrumbe no tiene efecto. */
 function fortalezaActiva(p: Partida, b: Fortaleza): boolean {
-  return !b.roto && !derrumbeEn(p, b.idx);
+  return !b.roto && !derrumbeEn(p, b.idx) && !lunaSangrienta(p);
 }
 
 /** Fortalezas que están bloqueando ahora mismo. */
@@ -399,7 +413,15 @@ export function crearPartida(jugadores: { raza: RazaId; tipo: TipoJugador }[]): 
 /* ---------------- Capturas ---------------- */
 
 /** ¿La ficha resiste un ataque? Consume la protección de Simbiosis si la usa. */
-function resisteAtaque(f: Ficha): boolean {
+/** Niebla Espesa: nadie puede capturar. */
+const niebla = (p: Partida) => p.global?.id === "niebla-espesa";
+/** Luna Sangrienta: escudos, protecciones y fortalezas no surten efecto. */
+const lunaSangrienta = (p: Partida) => p.global?.id === "luna-sangrienta";
+/** ¿Está prohibido capturar en esta casilla? En Salidas y Refugios, y en todas con Niebla Espesa. */
+const sinCapturas = (p: Partida, idx: number) => esRefugio(idx) || niebla(p);
+
+function resisteAtaque(p: Partida, f: Ficha): boolean {
+  if (lunaSangrienta(p)) return false;
   if (f.escudo) return true;
   if (f.proteccion) {
     f.proteccion = false;
@@ -417,11 +439,11 @@ function devolverABase(f: Ficha) {
 
 /** Ataca a las fichas rivales que haya en la casilla `idx` (nunca en Salidas ni Refugios). */
 function atacar(p: Partida, atacante: RazaId, idx: number): number {
-  if (esRefugio(idx)) return 0;
+  if (sinCapturas(p, idx)) return 0;
   let n = 0;
   for (const f of ocupantes(p, idx)) {
     if (f.raza === atacante) continue;
-    if (resisteAtaque(f)) {
+    if (resisteAtaque(p, f)) {
       registrar(p, `Una ficha de los ${nombre(f.raza)} resiste el ataque protegida por la magia.`, f.raza);
       continue;
     }
@@ -435,13 +457,14 @@ function atacar(p: Partida, atacante: RazaId, idx: number): number {
 }
 
 function capturasPosibles(p: Partida, atacante: RazaId, idx: number): number {
-  if (esRefugio(idx)) return 0;
-  return ocupantes(p, idx).filter((f) => f.raza !== atacante && !resisteSinGastar(f)).length;
+  if (sinCapturas(p, idx)) return 0;
+  return ocupantes(p, idx).filter((f) => f.raza !== atacante && !resisteSinGastar(p, f)).length;
 }
 
 /** La ficha rival que se comería al sacar una ficha a la Salida (solo una). */
 function victimaEnSalida(p: Partida, raza: RazaId): Ficha | null {
-  return ocupantes(p, idxSalida(raza)).find((f) => f.raza !== raza && !resisteSinGastar(f)) ?? null;
+  if (niebla(p)) return null;
+  return ocupantes(p, idxSalida(raza)).find((f) => f.raza !== raza && !resisteSinGastar(p, f)) ?? null;
 }
 
 /* ---------------- Movimientos legales ---------------- */
@@ -449,7 +472,7 @@ function victimaEnSalida(p: Partida, raza: RazaId): Ficha | null {
 /** ¿Cabe una ficha de `raza` en la casilla `idx` del recorrido (contando las que se comería)? */
 function cabeEnCasilla(p: Partida, raza: RazaId, idx: number, excluir: string): boolean {
   const resto = ocupantes(p, idx).filter((f) => f.id !== excluir);
-  const quedan = esRefugio(idx) ? resto : resto.filter((f) => f.raza === raza || resisteSinGastar(f));
+  const quedan = sinCapturas(p, idx) ? resto : resto.filter((f) => f.raza === raza || resisteSinGastar(p, f));
   return quedan.length < MAX_POR_CASILLA;
 }
 
@@ -787,6 +810,38 @@ function terminarTurno(p: Partida): Partida {
     .filter((d) => d.turnos > 0);
   actualizarBloqueos(p);
 
+  // Los eventos globales con duración gastan un turno (duran una ronda completa).
+  if (p.global) {
+    const turnos = p.global.turnos - 1;
+    if (turnos <= 0) {
+      const g = EVENTOS_GLOBALES.find((e) => e.id === p.global!.id);
+      if (g) registrar(p, `Termina el efecto de ${g.nombre}.`);
+      p.global = null;
+    } else p.global = { ...p.global, turnos };
+  }
+
+  // Muy de vez en cuando, un evento global (en lugar del evento del Portal de este turno).
+  if (Math.random() < EVENTO_GLOBAL.prob) {
+    const posibles = EVENTO_GLOBAL.solo ? EVENTOS_GLOBALES.filter((e) => e.id === EVENTO_GLOBAL.solo) : EVENTOS_GLOBALES;
+    const evento = posibles[Math.floor(Math.random() * posibles.length)];
+    registrar(p, `Evento global: ${evento.nombre}.`);
+    const q = clonar(p);
+    q.bonos = [];
+    const { resumen, detalle: lineas } = resolverGlobal(q, evento);
+    actualizarBloqueos(q);
+    p.eventoActual = {
+      evento,
+      raza: j.raza,
+      texto: [{ t: evento.efecto }],
+      resumen,
+      lineas,
+      pendiente: { fichas: q.fichas, jugadores: q.jugadores, derrumbes: q.derrumbes, bonos: q.bonos, log: q.log, contador: q.contador, global: q.global ?? null },
+    };
+    p.contador = q.contador;
+    p.fase = "evento";
+    return p;
+  }
+
   // Hay evento posible mientras tenga alguna ficha en el recorrido. Las del carril final
   // están a salvo, pero no impiden que el Portal actúe sobre las demás.
   const puedeHaberEvento = tieneEnRecorrido(p, j.raza);
@@ -805,7 +860,7 @@ function terminarTurno(p: Partida): Partida {
       texto: textoEvento(evento, MATRIZ_EFECTOS[j.raza][evento.tipo], extremos),
       resumen,
       lineas,
-      pendiente: { fichas: q.fichas, jugadores: q.jugadores, derrumbes: q.derrumbes, bonos: q.bonos, log: q.log, contador: q.contador },
+      pendiente: { fichas: q.fichas, jugadores: q.jugadores, derrumbes: q.derrumbes, bonos: q.bonos, log: q.log, contador: q.contador, global: q.global ?? null },
     };
     p.contador = q.contador;
     p.fase = "evento";
@@ -822,6 +877,7 @@ export function cerrarEvento(prev: Partida): Partida {
   p.jugadores = res.jugadores.map((j) => ({ ...j }));
   p.derrumbes = res.derrumbes.map((d) => ({ ...d }));
   p.log = [...res.log];
+  if (res.global !== undefined) p.global = res.global;
   sincronizarFortalezas(p);
   p.contador = Math.max(p.contador, res.contador);
   p.eventoActual = null;
@@ -929,6 +985,69 @@ interface Resolucion {
   detalle: string[];
   /** Juicio Divino y Estampida: de qué raza son la ficha más adelantada y la más rezagada. */
   extremos?: { adelantada: RazaId; rezagada: RazaId };
+}
+
+/** Aplica un evento global: igual para todos, sin matriz de efectos. */
+function resolverGlobal(p: Partida, evento: EventoGlobalDef): Resolucion {
+  const detalle: string[] = [];
+  switch (evento.id) {
+    case "tornado":
+    case "retroceso-del-tiempo": {
+      const avanza = evento.id === "tornado";
+      // Se mueven primero las que van delante en el sentido del movimiento, para no estorbarse.
+      const fichas = p.fichas
+        .filter(enRecorrido)
+        .filter((f) => avanza || !esRefugio(loopIndex(f.raza, f.rel!)))
+        .sort((a, b) => (avanza ? b.rel! - a.rel! : a.rel! - b.rel!));
+      let movidas = 0;
+      for (const f of fichas) {
+        const antes = f.rel;
+        desplazar(p, f, avanza ? 2 : -2);
+        if (f.rel !== antes) movidas++;
+      }
+      const quietas = p.fichas.filter(enRecorrido).length - movidas;
+      if (quietas > 0) {
+        const cuantas = quietas === 1 ? "Una ficha no se mueve" : `${quietas} fichas no se mueven`;
+        detalle.push(`${cuantas} (${avanza ? "atrapada o ya en la entrada a su carril" : "en una salida o un refugio, o atrapada"}).`);
+      }
+      if (!movidas) return { resumen: "Ninguna ficha del recorrido puede moverse: no pasa nada.", detalle };
+      const verbo = avanza ? "avanza" : "retrocede";
+      return { resumen: movidas === 1 ? `Una ficha ${verbo} 2 casillas.` : `${movidas} fichas ${verbo}n 2 casillas.`, detalle };
+    }
+    case "niebla-espesa":
+    case "luna-sangrienta": {
+      // Una ronda completa: hasta que todos hayan jugado un turno.
+      p.global = { id: evento.id, turnos: p.jugadores.length };
+      return {
+        resumen:
+          evento.id === "niebla-espesa"
+            ? "Nadie puede capturar hasta que todos hayan jugado un turno."
+            : "Escudos, protecciones y fortalezas no sirven hasta que todos hayan jugado un turno.",
+        detalle,
+      };
+    }
+    case "sombra-del-eclipse": {
+      for (const j of p.jugadores) j.maldicion = Math.max(j.maldicion, 1);
+      return { resumen: "Todas las razas quedan ralentizadas durante su próximo turno.", detalle };
+    }
+    case "llamado-del-portal": {
+      const salen: RazaId[] = [];
+      for (const j of p.jugadores) {
+        const ficha = fichasDe(p, j.raza).find((f) => f.rel === null);
+        if (!ficha) continue;
+        if (ocupantes(p, idxSalida(j.raza)).length >= MAX_POR_CASILLA) {
+          detalle.push(`Los ${nombre(j.raza)} no tienen sitio en su salida.`);
+          continue;
+        }
+        ficha.rel = 0;
+        salen.push(j.raza);
+      }
+      sincronizarFortalezas(p);
+      if (!salen.length) return { resumen: "Nadie puede sacar una ficha: no pasa nada.", detalle };
+      return { resumen: `Sacan una ficha de su base: ${salen.map(nombre).join(", ")}.`, detalle };
+    }
+  }
+  return { resumen: "No pasa nada.", detalle };
 }
 
 /** Aplica el evento y devuelve qué pasó, solo en términos de juego (el lore va en la descripción). */

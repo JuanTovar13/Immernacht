@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EventThemeMotif } from "../EventThemeMotif";
 import { RevealWords } from "../RevealWords";
-import { TIPOS_EVENTO } from "../../game/types";
+import { INFO_GLOBAL, TIPOS_EVENTO } from "../../game/types";
 import { EFECTO_INFO } from "../../game/lore";
 import type { ResultadoEvento } from "../../game/digital/engine";
 import { audioManager } from "../../audio/audioManager";
@@ -14,7 +14,8 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
   // `texto` puede faltar en partidas en línea creadas antes de este cambio.
   const { evento, texto, resumen, lineas } = resultado;
   const [detalleAbierto, setDetalleAbierto] = useState(false);
-  const info = TIPOS_EVENTO[evento.tipo];
+  const esGlobal = evento.tipo === "global";
+  const info = evento.tipo === "global" ? INFO_GLOBAL : TIPOS_EVENTO[evento.tipo];
 
   const cerrar = () => {
     audioManager.detenerNarracion();
@@ -83,9 +84,19 @@ export function EventOverlay({ resultado, onContinuar }: { resultado: ResultadoE
             >
               <span>{info.icono}</span>
               <span className="font-display text-xs tracking-wide" style={{ color: `var(${info.brightVar})` }}>
-                {info.nombre}
+                {esGlobal ? "Evento global" : info.nombre}
               </span>
             </div>
+            {esGlobal && (
+              <motion.p
+                className="text-center text-[11px] uppercase tracking-[0.18em] text-[color:var(--color-parchment-dim)]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: t(0.5) }}
+              >
+                Afecta a todos por igual
+              </motion.p>
+            )}
             <h2
               className="text-center font-display text-2xl leading-tight"
               style={{ color: `var(${info.brightVar})`, filter: `drop-shadow(0 0 16px color-mix(in srgb, var(${info.glowVar}) 60%, transparent))` }}

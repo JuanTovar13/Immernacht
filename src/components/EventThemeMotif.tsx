@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
 import type { TipoEvento } from "../game/types";
 
-export function EventThemeMotif({ tipo }: { tipo: TipoEvento }) {
+export function EventThemeMotif({ tipo }: { tipo: TipoEvento | "global" }) {
   switch (tipo) {
+    case "global":
+      return <GlobalMotif />;
     case "celestial":
       return <CelestialMotif />;
     case "natural":
@@ -391,6 +393,44 @@ function TerrenalMotif() {
           </motion.svg>
         );
       })}
+    </div>
+  );
+}
+
+/* ================= GLOBAL: el eclipse completo, corona dorada y anillos ================= */
+function GlobalMotif() {
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* Corona del eclipse detrás de la carta */}
+      <motion.div
+        className="absolute left-1/2 top-[38%] h-[120vmin] w-[120vmin] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle, transparent 0 22%, color-mix(in srgb, var(--global-glow) 55%, transparent) 24%, color-mix(in srgb, var(--global-bright) 18%, transparent) 34%, transparent 58%)",
+        }}
+        initial={{ opacity: 0, scale: 0.6 }}
+        animate={{ opacity: [0, 1, 0.75], scale: 1 }}
+        transition={{ duration: 1.6, ease: "easeOut" }}
+      />
+      {/* Disco negro de la luna */}
+      <motion.div
+        className="absolute left-1/2 top-[38%] h-[52vmin] w-[52vmin] -translate-x-1/2 -translate-y-1/2 rounded-full"
+        style={{ background: "#05060c", boxShadow: "0 0 60px 10px rgba(255,233,168,0.35)" }}
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        transition={{ duration: 1.2, ease: [0.2, 0.7, 0.3, 1] }}
+      />
+      {/* Anillos que giran en sentidos opuestos */}
+      {[64, 86].map((tam, i) => (
+        <motion.div
+          key={tam}
+          className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed"
+          style={{ width: `${tam}vmin`, height: `${tam}vmin`, borderColor: "color-mix(in srgb, var(--global-bright) 35%, transparent)" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, rotate: i ? -360 : 360 }}
+          transition={{ opacity: { duration: 1, delay: 0.6 }, rotate: { duration: i ? 70 : 50, repeat: Infinity, ease: "linear" } }}
+        />
+      ))}
     </div>
   );
 }

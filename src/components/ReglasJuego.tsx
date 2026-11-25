@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO, type EfectoMatriz, type TipoEvento } from "../game/types";
+import { EVENTOS_GLOBALES, INFO_GLOBAL, MATRIZ_EFECTOS, RAZAS, TIPOS_EVENTO, type EfectoMatriz, type TipoEvento } from "../game/types";
 import { EFECTO_INFO } from "../game/lore";
 import { BONO_CAPTURA, BONO_META, FORTALEZAS, PARES_MAGIA_NEGRA } from "../game/digital/engine";
 import { useAjustes } from "../game/ajustes";
@@ -235,6 +235,25 @@ function Matriz() {
         En los eventos que afectan a varias fichas, cada una usa la matriz de su propia raza. En la tarjeta del evento los números ya vienen
         ajustados y en color.
       </p>
+
+      <h4 className="mb-2 mt-5 border-b border-white/10 pb-1 font-display text-[13px] tracking-wide">
+        <span className="mr-1.5">{INFO_GLOBAL.icono}</span>Eventos globales
+      </h4>
+      <p className="text-[12px] leading-snug text-[color:var(--color-parchment-dim)]">
+        De vez en cuando, el Portal altera aún más el flujo de las leyes naturales y afecta a <T>todos los jugadores</T> a la vez. Nadie sabe
+        cuándo ocurrirá, y puede que en toda una partida no ocurra nunca. Durante estos eventos no hay efectos <T>a favor</T> ni{" "}
+        <T>en contra</T>: la matriz no se aplica y todos los sufren por igual.
+      </p>
+      <ul className="mt-2.5 space-y-1.5 text-[12px] leading-snug text-[color:var(--color-parchment-dim)]">
+        {EVENTOS_GLOBALES.map((e) => (
+          <li key={e.id}>
+            <span className="font-semibold" style={{ color: "var(--global-bright)" }}>
+              {e.nombre}:
+            </span>{" "}
+            {e.efecto}
+          </li>
+        ))}
+      </ul>
     </>
   );
 }

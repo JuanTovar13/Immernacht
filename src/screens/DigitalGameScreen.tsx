@@ -5,7 +5,7 @@ import { InfoModal } from "../components/InfoModal";
 import { Board } from "../components/digital/Board";
 import { Dado } from "../components/digital/Dice";
 import { EventOverlay } from "../components/digital/EventOverlay";
-import { RAZAS, type RazaId } from "../game/types";
+import { EVENTOS_GLOBALES, RAZAS, type RazaId } from "../game/types";
 import { useGameStore } from "../game/store";
 import { useDigitalStore } from "../game/digital/store";
 import { COLOR_TABLERO, CUARTO, REL_META_INI, giroParaRaza } from "../game/digital/board";
@@ -330,6 +330,7 @@ export function DigitalGameScreen() {
 
         {/* Panel de control */}
         <div className="flex shrink-0 flex-col gap-3 px-4 pb-4 pt-1 landscape:w-80 landscape:justify-center landscape:pb-4 landscape:pt-16 sm:landscape:pt-20 lg:landscape:w-96">
+          {partida.global && <EfectoGlobalActivo efecto={partida.global} />}
           <div className="flex items-center justify-between gap-2">
             <motion.div
               key={`${partida.turno}`}
@@ -562,5 +563,31 @@ function IconoSalida() {
       <path d="M14 8l4 4-4 4" />
       <path d="M18 12H9" />
     </svg>
+  );
+}
+
+/** Aviso del evento global que sigue en curso (Niebla Espesa, Luna Sangrienta). */
+function EfectoGlobalActivo({ efecto }: { efecto: { id: string; turnos: number } }) {
+  const def = EVENTOS_GLOBALES.find((e) => e.id === efecto.id);
+  if (!def) return null;
+  const que = efecto.id === "niebla-espesa" ? "nadie puede capturar" : "sin escudos ni fortalezas";
+  return (
+    <motion.div
+      className="flex items-center justify-center gap-2 rounded-full border px-3 py-1 text-[11px]"
+      style={{
+        borderColor: "color-mix(in srgb, var(--global-bright) 45%, transparent)",
+        background: "color-mix(in srgb, var(--global-deep) 80%, transparent)",
+        color: "var(--global-bright)",
+      }}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      title={def.efecto}
+    >
+      <span>🌘</span>
+      <span className="font-display tracking-wide">{def.nombre}</span>
+      <span className="text-[color:var(--color-parchment-dim)]">
+        · {que} · {efecto.turnos === 1 ? "queda 1 turno" : `quedan ${efecto.turnos} turnos`}
+      </span>
+    </motion.div>
   );
 }
