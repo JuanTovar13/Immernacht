@@ -317,6 +317,7 @@ export function DigitalGameScreen() {
               derrumbes={partida.derrumbes}
               fortalezas={fortalezasActivas(partida)}
               giro={giro}
+              ralentizados={Object.fromEntries(partida.jugadores.map((j) => [j.raza, j.maldicion]))}
               onFicha={onFicha}
               onDestino={moverA}
               onBase={() => {

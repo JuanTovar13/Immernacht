@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { createContext, memo, useContext, useState, type CSSProperties } from "react";
 import { RAZAS, type RazaId } from "../../game/types";
+import { COLOR_DEBILITADO } from "./IconoDebilitado";
 import {
   BASE_CUARTO0,
   BASE_RECT0,
@@ -48,6 +49,8 @@ interface BoardProps {
   onBase: () => void;
   /** Giro de la vista en grados (múltiplo de 90): en línea, la raza de cada jugador queda abajo a la derecha. */
   giro?: number;
+  /** Turnos que le quedan ralentizado a cada raza (se marca sobre sus fichas). */
+  ralentizados?: Partial<Record<RazaId, number>>;
 }
 
 /** Giro de la vista: los textos, emblemas y fichas lo deshacen para verse siempre derechos. */
@@ -67,7 +70,7 @@ const ID_BRILLO_SEL = "brillo-sel";
 const idBrillo = (raza: RazaId) => `brillo-${raza}`;
 
 export function Board(props: BoardProps) {
-  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0 } = props;
+  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0, ralentizados = {} } = props;
   const lugares = useLugares(fichas);
   const fichaSel = fichas.find((f) => f.id === seleccion);
 
@@ -113,6 +116,7 @@ export function Board(props: BoardProps) {
                 offset={lugares.get(f.id) ?? { x: 0, y: 0 }}
                 movible={movibles.has(f.id)}
                 seleccionada={seleccion === f.id}
+                ralentizado={f.rel !== null ? (ralentizados[f.raza] ?? 0) : 0}
                 onClick={() => onFicha(f.id)}
               />
             ))}
@@ -833,12 +837,15 @@ function FichaToken({
   offset,
   movible,
   seleccionada,
+  ralentizado,
   onClick,
 }: {
   ficha: Ficha;
   offset: Punto;
   movible: boolean;
   seleccionada: boolean;
+  /** Turnos que le quedan ralentizada a su raza (0 = no lo está). */
+  ralentizado: number;
   onClick: () => void;
 }) {
   const giro = useContext(GiroVista);
@@ -899,10 +906,28 @@ function FichaToken({
             </text>
           </g>
         )}
+        {ralentizado > 0 && <MarcaRalentizado turnos={ralentizado} />}
         {enMeta && <circle r={19} fill="none" stroke="#ffe9a8" strokeWidth={1.5} opacity={0.8} />}
       </motion.g>
       </g>
      </motion.g>
     </motion.g>
+  );
+}
+
+/** Ficha ralentizada: la flecha hacia el suelo y los turnos que le quedan (arriba a la izquierda). */
+function MarcaRalentizado({ turnos }: { turnos: number }) {
+  return (
+    <g transform="translate(-21 -20)">
+      <title>{`ralentizado (${turnos})`}</title>
+      <rect x={0} y={0} width={20} height={14} rx={7} fill="#3a2320" stroke={COLOR_DEBILITADO} strokeWidth={1.4} />
+      <g transform="translate(2.2 1.6) scale(0.68)" fill="none" stroke={COLOR_DEBILITADO} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M8 3.6 V9.6 M5.2 7 L8 9.8 L10.8 7" strokeWidth={2.2} />
+        <path d="M4.8 12.2 H11.2" strokeWidth={2.2} />
+      </g>
+      <text x={14.6} y={7.4} textAnchor="middle" dominantBaseline="central" fontSize={9} fontWeight={700} fill="#fff">
+        {turnos}
+      </text>
+    </g>
   );
 }
