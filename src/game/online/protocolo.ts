@@ -31,6 +31,8 @@ export interface VistaSala {
   propuestas: PropuestaCambio[];
   /** Cuenta regresiva en marcha (un valor nuevo cada vez que arranca una), o null. */
   cuenta: number | null;
+  /** Milisegundos que le quedan a esa cuenta cuando el servidor envió este estado. */
+  cuentaRestante?: number | null;
 }
 
 /** `de` propone a `a` intercambiar sus razas (si `de` no tiene, le pide la suya). */
@@ -41,6 +43,8 @@ export interface PropuestaCambio {
 
 /** Segundos de la cuenta regresiva cuando todos están listos. */
 export const SEGUNDOS_CUENTA = 3;
+/** Segundos de espera cuando alguien está listo (con más de un jugador en la sala). */
+export const SEGUNDOS_ESPERA = 30;
 
 /** Acciones de juego (las mismas del modo local). */
 export type AccionJuego =

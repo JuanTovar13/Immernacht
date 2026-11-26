@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { StarField } from "../components/StarField";
 import { RAZAS, ORDEN_RAZAS, type RazaId } from "../game/types";
 import { useGameStore } from "../game/store";
@@ -56,6 +56,7 @@ export function OnlineScreen() {
 
   return (
     <Fondo
+      ancho={!!sala}
       esquina={
         <button
           onClick={volver}
@@ -193,10 +194,15 @@ function SalaDeEspera({ sala, reconectando, onSalir }: { sala: VistaSala; recone
   const propuestas = sala.propuestas ?? [];
   const recibidas = propuestas.filter((p) => p.a === jugadorId);
   const estoyListo = listos.includes(jugadorId);
-  const cuenta = useCuentaRegresiva(sala.cuenta ?? null);
+  const cuenta = useCuentaRegresiva(sala.cuenta ?? null, sala.cuentaRestante);
+
+  const conectados = sala.jugadores.filter((j) => j.conectado);
+  const listosConectados = conectados.filter((j) => listos.includes(j.id)).length;
+  const sinRaza = sala.jugadores.filter((j) => !razaDe(j.id));
+  const enEspera = cuenta !== null && cuenta > SEGUNDOS_CUENTA;
 
   return (
-    <div className="flex w-full max-w-lg flex-col items-center gap-6">
+    <div className="flex w-full flex-col items-center gap-6">
       <div className="text-center">
         <p className="text-[11px] uppercase tracking-[0.2em] text-[color:var(--color-muted)]">Código de la sala</p>
         <p className="mt-1 font-display text-4xl tracking-[0.35em] text-[color:var(--color-eclipse-gold)]" style={{ paddingLeft: "0.35em" }}>
@@ -208,6 +214,15 @@ function SalaDeEspera({ sala, reconectando, onSalir }: { sala: VistaSala; recone
         >
           {copiado ? "¡Enlace copiado!" : "Compartir invitación"}
         </button>
+        <p className="mx-auto mt-2 max-w-xs text-[11px] leading-relaxed text-[color:var(--color-muted)]">
+          {!puedeEmpezar
+            ? soyAnfitrion
+              ? "Se necesitan al menos 2 facciones: espera a otro jugador o pon una máquina."
+              : "Se necesitan al menos 2 facciones para empezar."
+            : soyAnfitrion
+              ? "Los asientos libres no jugarán. Usa «Poner máquina» para llenarlos."
+              : null}
+        </p>
         {reconectando && <p className="mt-2 text-xs text-amber-300">Reconectando…</p>}
       </div>
 
@@ -216,7 +231,7 @@ function SalaDeEspera({ sala, reconectando, onSalir }: { sala: VistaSala; recone
         const suya = razaDe(p.de);
         const mia = razaDe(jugadorId);
         return (
-          <div key={p.de} className="w-full rounded-md border border-[color:var(--color-eclipse-gold)]/40 bg-black/40 px-4 py-3 text-center">
+          <div key={p.de} className="w-full max-w-lg rounded-md border border-[color:var(--color-eclipse-gold)]/40 bg-black/40 px-4 py-3 text-center">
             <p className="text-sm text-[color:var(--color-parchment)]">
               <strong>{nombreDe(p.de)}</strong>{" "}
               {suya && mia
@@ -249,86 +264,93 @@ function SalaDeEspera({ sala, reconectando, onSalir }: { sala: VistaSala; recone
         );
       })}
 
-      <div className="grid w-full grid-cols-2 gap-3">
-        {ORDEN_RAZAS.map((r) => {
-          const a = sala.asientos[r];
-          const ocupante = a.tipo === "humano" ? a.jugadorId : null;
-          return (
-            <AsientoCard
-              key={r}
-              raza={r}
-              asiento={a}
-              mio={ocupante === jugadorId}
-              nombre={ocupante ? nombreDe(ocupante) : ""}
-              conectado={!ocupante || !!sala.jugadores.find((j) => j.id === ocupante)?.conectado}
-              listo={!!ocupante && listos.includes(ocupante)}
-              soyAnfitrion={soyAnfitrion}
-              propuesta={
-                !ocupante || ocupante === jugadorId
-                  ? null
-                  : propuestas.some((p) => p.de === jugadorId && p.a === ocupante)
-                    ? "enviada"
-                    : propuestas.some((p) => p.de === ocupante && p.a === jugadorId)
-                      ? "recibida"
-                      : null
-              }
-              onElegir={() => enviar({ t: "elegirRaza", raza: r })}
-              onCambiar={() => enviar({ t: "cambiarAsiento", raza: r })}
-              onProponer={() => enviar({ t: "proponerCambio", raza: r })}
-              onCancelar={() => enviar({ t: "cancelarCambio" })}
-              onSoltar={() => enviar({ t: "soltarRaza" })}
-            />
-          );
-        })}
-      </div>
+      {/* Razas a la izquierda; a la derecha, el botón de listo (debajo en pantallas angostas) */}
+      <div className="flex w-full flex-col items-center gap-5 sm:flex-row sm:items-stretch sm:justify-center">
+        <div className="grid w-full max-w-lg grid-cols-2 gap-3">
+          {ORDEN_RAZAS.map((r) => {
+            const a = sala.asientos[r];
+            const ocupante = a.tipo === "humano" ? a.jugadorId : null;
+            return (
+              <AsientoCard
+                key={r}
+                raza={r}
+                asiento={a}
+                mio={ocupante === jugadorId}
+                nombre={ocupante ? nombreDe(ocupante) : ""}
+                anfitrion={!!ocupante && ocupante === sala.anfitrion}
+                conectado={!ocupante || !!sala.jugadores.find((j) => j.id === ocupante)?.conectado}
+                listo={!!ocupante && listos.includes(ocupante)}
+                soyAnfitrion={soyAnfitrion}
+                propuesta={
+                  !ocupante || ocupante === jugadorId
+                    ? null
+                    : propuestas.some((p) => p.de === jugadorId && p.a === ocupante)
+                      ? "enviada"
+                      : propuestas.some((p) => p.de === ocupante && p.a === jugadorId)
+                        ? "recibida"
+                        : null
+                }
+                onElegir={() => enviar({ t: "elegirRaza", raza: r })}
+                onCambiar={() => enviar({ t: "cambiarAsiento", raza: r })}
+                onProponer={() => enviar({ t: "proponerCambio", raza: r })}
+                onCancelar={() => enviar({ t: "cancelarCambio" })}
+                onSoltar={() => enviar({ t: "soltarRaza" })}
+              />
+            );
+          })}
+        </div>
 
-      <div className="w-full max-w-xs text-center">
-        <p className="text-[11px] uppercase tracking-[0.18em] text-[color:var(--color-muted)]">En la sala</p>
-        <div className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-1">
-          {sala.jugadores.map((j) => (
-            <span key={j.id} className="text-sm text-[color:var(--color-parchment-dim)]">
-              <span className={`mr-1 inline-block h-1.5 w-1.5 rounded-full align-middle ${j.conectado ? "bg-emerald-400" : "bg-white/25"}`} />
-              {j.nombre}
-              {j.id === sala.anfitrion && " 👑"}
-              {j.id === jugadorId && " (tú)"}
-              {listos.includes(j.id) && <span className="ml-1 text-emerald-300">✓</span>}
-            </span>
-          ))}
+        <div className="flex w-full max-w-xs flex-col items-stretch justify-center gap-3 sm:w-52">
+          <motion.button
+            onClick={() => {
+              audioManager.playSfxBoton();
+              enviar({ t: "listo", valor: !estoyListo });
+            }}
+            aria-pressed={estoyListo}
+            className="rounded-md border-2 px-6 py-4 font-display text-lg tracking-[0.12em] transition-colors"
+            style={{
+              borderColor: estoyListo ? "#34d399" : "rgba(255,255,255,0.25)",
+              color: estoyListo ? "#d1fae5" : "var(--color-parchment-dim)",
+              background: estoyListo ? "linear-gradient(180deg, rgba(16,185,129,0.35), rgba(6,78,59,0.35))" : "rgba(0,0,0,0.3)",
+              boxShadow: estoyListo ? "0 0 24px rgba(52,211,153,0.45)" : "none",
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {estoyListo ? "✓ LISTO" : "NO LISTO"}
+          </motion.button>
+          <p className="text-center text-sm text-[color:var(--color-parchment-dim)]">
+            {listosConectados}/{conectados.length} listos
+          </p>
+          {enEspera && (
+            <p className="text-center text-xs text-emerald-200">
+              La partida empieza en <span className="font-display text-base">{cuenta}</span> s
+            </p>
+          )}
+          {soyAnfitrion && (
+            <motion.button
+              onClick={() => {
+                audioManager.playSfxBoton();
+                enviar({ t: "empezar" });
+              }}
+              disabled={!puedeEmpezar}
+              className={BOTON_PRINCIPAL}
+              style={ESTILO_PRINCIPAL}
+              whileTap={{ scale: 0.95 }}
+            >
+              Abrir el Portal
+            </motion.button>
+          )}
         </div>
       </div>
 
-      {/* Listo: si todos los presentes lo marcan, la partida empieza tras una cuenta regresiva */}
-      <div className="flex w-full max-w-xs flex-col items-center gap-1.5">
-        <button
-          role="switch"
-          aria-checked={estoyListo}
-          onClick={() => {
-            audioManager.playSfxBoton();
-            enviar({ t: "listo", valor: !estoyListo });
-          }}
-          className="flex items-center gap-3 rounded-full border px-4 py-2 font-display text-sm tracking-wide transition-colors"
-          style={{
-            borderColor: estoyListo ? "rgba(110,231,183,0.7)" : "rgba(255,255,255,0.2)",
-            color: estoyListo ? "#a7f3d0" : "var(--color-parchment-dim)",
-            background: estoyListo ? "rgba(16,185,129,0.12)" : "rgba(0,0,0,0.25)",
-          }}
-        >
-          <span className="relative inline-block h-5 w-9 rounded-full transition-colors" style={{ background: estoyListo ? "#10b981" : "rgba(255,255,255,0.18)" }}>
-            <motion.span
-              className="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow"
-              animate={{ left: estoyListo ? 18 : 2 }}
-              transition={{ type: "spring", stiffness: 500, damping: 32 }}
-            />
-          </span>
-          Listo
-        </button>
+      {sinRaza.length > 0 && (
         <p className="text-center text-[11px] text-[color:var(--color-muted)]">
-          {listos.length}/{sala.jugadores.filter((j) => j.conectado).length} listos · si todos lo están, la partida empieza sola
+          Sin raza: {sinRaza.map((j) => `${j.nombre}${j.id === sala.anfitrion ? " 👑" : ""}${j.id === jugadorId ? " (tú)" : ""}`).join(", ")}
         </p>
-      </div>
+      )}
 
       <AnimatePresence>
-        {cuenta !== null && (
+        {cuenta !== null && cuenta > 0 && cuenta <= SEGUNDOS_CUENTA && (
           <motion.div
             className="pointer-events-none fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/55"
             initial={{ opacity: 0 }}
@@ -352,61 +374,40 @@ function SalaDeEspera({ sala, reconectando, onSalir }: { sala: VistaSala; recone
 
       {error && <p className="text-center text-xs text-red-200">{error}</p>}
 
-      <div className="flex w-full max-w-xs flex-col gap-3">
-        {soyAnfitrion ? (
-          <>
-            <motion.button
-              onClick={() => {
-                audioManager.playSfxBoton();
-                enviar({ t: "empezar" });
-              }}
-              disabled={!puedeEmpezar}
-              className={BOTON_PRINCIPAL}
-              style={ESTILO_PRINCIPAL}
-              whileTap={{ scale: 0.95 }}
-            >
-              Abrir el Portal
-            </motion.button>
-            <p className="text-center text-[11px] leading-relaxed text-[color:var(--color-muted)]">
-              {puedeEmpezar
-                ? "Los asientos libres no jugarán. Usa «Poner máquina» para llenarlos."
-                : "Se necesitan al menos 2 facciones: espera a otro jugador o pon una máquina."}
-            </p>
-          </>
-        ) : (
-          <p className="text-center text-xs text-[color:var(--color-parchment-dim)]">Esperando a que el anfitrión abra el Portal o a que todos estén listos…</p>
-        )}
-        <button onClick={onSalir} className="py-2 text-xs text-[color:var(--color-muted)]">
-          Salir de la sala
-        </button>
-      </div>
+      <button onClick={onSalir} className="py-2 text-xs text-[color:var(--color-muted)]">
+        Salir de la sala
+      </button>
     </div>
   );
 }
 
 /**
- * Cuenta regresiva local (3, 2, 1) que arranca cada vez que el servidor anuncia
- * una nueva; se corta si el servidor la cancela (alguien dejó de estar listo).
+ * Segundos que le quedan a la cuenta regresiva del servidor (null sin cuenta).
+ * Suena al arrancar una cuenta nueva y luego solo en los últimos 3 segundos.
  */
-function useCuentaRegresiva(cuenta: number | null): number | null {
-  const [paso, setPaso] = useState<{ de: number; n: number } | null>(null);
+function useCuentaRegresiva(cuenta: number | null, restante: number | null | undefined): number | null {
+  const [seg, setSeg] = useState<{ de: number; s: number } | null>(null);
+  const ultimo = useRef<{ de: number; s: number } | null>(null);
   useEffect(() => {
     if (cuenta === null) return;
-    audioManager.playSfxBoton();
-    let n = SEGUNDOS_CUENTA;
-    const id = setInterval(() => {
-      n -= 1;
-      if (n <= 0) {
-        clearInterval(id);
-        return;
-      }
-      setPaso({ de: cuenta, n });
-      audioManager.playSfxBoton();
-    }, 1000);
+    // Servidores anteriores no mandan lo que queda: era siempre la cuenta corta.
+    const fin = Date.now() + (restante ?? SEGUNDOS_CUENTA * 1000);
+    const tick = () => {
+      const s = Math.max(0, Math.ceil((fin - Date.now()) / 1000));
+      setSeg({ de: cuenta, s });
+      const prev = ultimo.current;
+      if (prev?.de !== cuenta) {
+        if (s > SEGUNDOS_CUENTA) audioManager.playSfxTurno();
+        else if (s > 0) audioManager.playSfxBoton();
+      } else if (s !== prev.s && s >= 1 && s <= SEGUNDOS_CUENTA) audioManager.playSfxBoton();
+      ultimo.current = { de: cuenta, s };
+    };
+    tick();
+    const id = setInterval(tick, 200);
     return () => clearInterval(id);
-  }, [cuenta]);
+  }, [cuenta, restante]);
   if (cuenta === null) return null;
-  return paso?.de === cuenta ? paso.n : SEGUNDOS_CUENTA;
+  return seg?.de === cuenta ? seg.s : null;
 }
 
 const ETIQUETA_CAMBIO: Record<"libre" | "ia" | "nadie", string> = { libre: "Poner máquina", ia: "Cerrar asiento", nadie: "Abrir asiento" };
@@ -418,6 +419,7 @@ function AsientoCard({
   asiento,
   mio,
   nombre,
+  anfitrion,
   conectado,
   listo,
   soyAnfitrion,
@@ -432,6 +434,8 @@ function AsientoCard({
   asiento: Asiento;
   mio: boolean;
   nombre: string;
+  /** Quien ocupa el asiento es el dueño de la sala. */
+  anfitrion: boolean;
   conectado: boolean;
   listo: boolean;
   soyAnfitrion: boolean;
@@ -451,17 +455,32 @@ function AsientoCard({
   const cerrado = asiento.tipo === "nadie";
   const elegible = !mio && (asiento.tipo === "libre" || asiento.tipo === "ia");
   const etiqueta =
-    asiento.tipo === "humano" ? `👤 ${nombre}${mio ? " (tú)" : ""}${listo ? " ✓" : ""}${conectado ? "" : " · sin conexión"}` :asiento.tipo === "ia" ? "🤖 Máquina" : asiento.tipo === "libre" ? "Libre" : "No juega";
+    asiento.tipo === "humano" ? `${anfitrion ? "👑" : "👤"} ${nombre}${mio ? " (tú)" : ""}${conectado ? "" : " · sin conexión"}` :asiento.tipo === "ia" ? "🤖 Máquina" : asiento.tipo === "libre" ? "Libre" : "No juega";
 
   return (
     <div
-      className="flex flex-col items-center gap-2 rounded-md border px-3 py-4"
+      className="relative flex flex-col items-center gap-2 rounded-md border px-3 py-4 transition-[box-shadow,background] duration-300"
       style={{
-        borderColor: cerrado ? "rgba(255,255,255,0.1)" : mio ? COLOR_TABLERO[raza].claro : `color-mix(in srgb, ${color} 55%, transparent)`,
-        background: cerrado ? "rgba(255,255,255,0.02)" : `linear-gradient(180deg, color-mix(in srgb, ${color} ${mio ? 30 : 16}%, transparent), rgba(5,7,15,0.4))`,
+        borderColor: cerrado ? "rgba(255,255,255,0.1)" : mio || listo ? COLOR_TABLERO[raza].claro : `color-mix(in srgb, ${color} 55%, transparent)`,
+        background: cerrado
+          ? "rgba(255,255,255,0.02)"
+          : `linear-gradient(180deg, color-mix(in srgb, ${color} ${listo ? 42 : mio ? 30 : 16}%, transparent), rgba(5,7,15,0.4))`,
+        boxShadow: listo ? `0 0 22px color-mix(in srgb, ${color} 70%, transparent), inset 0 0 18px color-mix(in srgb, ${color} 30%, transparent)` : "none",
         opacity: cerrado ? 0.5 : 1,
       }}
     >
+      {listo && (
+        <motion.span
+          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold text-white"
+          style={{ background: "#10b981", boxShadow: "0 0 10px rgba(16,185,129,0.8)" }}
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 500, damping: 20 }}
+          aria-label="Listo"
+        >
+          ✓
+        </motion.span>
+      )}
       <button
         onClick={() => {
           if (!elegible) return;
@@ -507,7 +526,7 @@ function AsientoCard({
   );
 }
 
-function Fondo({ children, esquina }: { children: ReactNode; esquina?: ReactNode }) {
+function Fondo({ children, esquina, ancho = false }: { children: ReactNode; esquina?: ReactNode; ancho?: boolean }) {
   return (
     <div className="relative h-full w-full overflow-hidden bg-noise" style={{ background: "var(--color-void-deep)" }}>
       <div
@@ -517,7 +536,7 @@ function Fondo({ children, esquina }: { children: ReactNode; esquina?: ReactNode
       <StarField count={40} />
       <div className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 0 140px 40px rgba(0,0,0,0.75)" }} />
       <div className="absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-none">
-        <div className="relative mx-auto flex min-h-full w-full max-w-lg flex-col items-center justify-center px-5 pb-10 pt-16">{children}</div>
+        <div className={`relative mx-auto flex min-h-full w-full ${ancho ? "max-w-3xl" : "max-w-lg"} flex-col items-center justify-center px-5 pb-10 pt-16`}>{children}</div>
       </div>
       {esquina}
     </div>

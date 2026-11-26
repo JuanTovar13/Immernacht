@@ -10,6 +10,7 @@ import { elegirAccion } from "../../src/game/digital/bot";
 import { ORDEN_RAZAS, type RazaId } from "../../src/game/types";
 import {
   SEGUNDOS_CUENTA,
+  SEGUNDOS_ESPERA,
   type AccionJuego,
   type Asiento,
   type CodigoError,
@@ -40,8 +41,12 @@ interface EstadoSala {
   /** Jugadores que marcaron "Listo" en la sala de espera. */
   listos: string[];
   propuestas: PropuestaCambio[];
-  /** Cuándo empezó la cuenta regresiva (todos listos), o null. */
+  /** Cuándo empezó la cuenta regresiva en marcha (sirve de identificador), o null. */
   cuentaDesde: number | null;
+  /** Cuándo termina esa cuenta y se abre el Portal. */
+  cuentaFin?: number | null;
+  /** true: la cuenta corta (todos listos); false: la de espera (alguien está listo). */
+  cuentaCorta?: boolean;
 }
 
 /** Margen tras la cuenta para que a todos les dé tiempo de ver el "1". */
@@ -73,7 +78,7 @@ export class Sala extends DurableObject<Env> {
     ctx.blockConcurrencyWhile(async () => {
       const guardado = (await ctx.storage.get<EstadoSala>("estado")) ?? null;
       // Salas guardadas antes de que existieran "Listo" y los intercambios.
-      this.estado = guardado && { ...guardado, listos: guardado.listos ?? [], propuestas: guardado.propuestas ?? [], cuentaDesde: guardado.cuentaDesde ?? null };
+      this.estado = guardado && { ...guardado, listos: guardado.listos ?? [], propuestas: guardado.propuestas ?? [], cuentaDesde: guardado.cuentaDesde ?? null, cuentaFin: guardado.cuentaFin ?? null };
     });
   }
 
@@ -289,28 +294,50 @@ export class Sala extends DurableObject<Env> {
     for (const r of ORDEN_RAZAS) if (e.asientos[r].tipo === "nadie") e.asientos[r] = { tipo: "libre" };
     e.listos = [];
     e.propuestas = [];
-    e.cuentaDesde = null;
+    this.cancelarCuenta();
     await this.cambio();
   }
 
-  /** Arranca o cancela la cuenta regresiva según si todos los presentes están listos. */
+  /**
+   * Arranca, acorta o cancela la cuenta regresiva:
+   * - todos los presentes listos → cuenta corta (SEGUNDOS_CUENTA);
+   * - con más de un jugador en la sala y alguien listo → cuenta de espera (SEGUNDOS_ESPERA),
+   *   al final de la cual la partida empieza aunque no todos lo hayan marcado;
+   * - nadie listo (o no hay facciones suficientes) → sin cuenta.
+   */
   private revisarCuenta() {
     const e = this.estado!;
     const conectados = this.conectados();
     const presentes = e.jugadores.filter((j) => conectados.has(j.id));
     const activos = ORDEN_RAZAS.filter((r) => e.asientos[r].tipo === "humano" || e.asientos[r].tipo === "ia");
-    const todos =
-      !e.partida &&
-      activos.length >= 2 &&
-      presentes.some((j) => this.razaDe(j.id)) &&
-      presentes.every((j) => e.listos.includes(j.id));
-    if (!todos) e.cuentaDesde = null;
-    else if (e.cuentaDesde === null) e.cuentaDesde = Date.now();
+    const valida = !e.partida && activos.length >= 2 && presentes.some((j) => this.razaDe(j.id));
+    const listos = presentes.filter((j) => e.listos.includes(j.id)).length;
+    const ahora = Date.now();
+    const arrancar = (segundos: number, corta: boolean) => {
+      e.cuentaDesde = ahora;
+      e.cuentaFin = ahora + segundos * 1000;
+      e.cuentaCorta = corta;
+    };
+    if (valida && listos > 0 && listos === presentes.length) {
+      if (e.cuentaFin == null || e.cuentaFin - ahora > SEGUNDOS_CUENTA * 1000) arrancar(SEGUNDOS_CUENTA, true);
+    } else if (valida && listos > 0 && presentes.length > 1) {
+      // Si venía la cuenta corta (alguien dejó de estar listo o llegó otro jugador), vuelve la de espera.
+      if (e.cuentaFin == null || e.cuentaCorta) arrancar(SEGUNDOS_ESPERA, false);
+    } else this.cancelarCuenta();
+  }
+
+  private cancelarCuenta() {
+    const e = this.estado!;
+    e.cuentaDesde = null;
+    e.cuentaFin = null;
+    e.cuentaCorta = false;
   }
 
   private finCuenta(): number | null {
-    const c = this.estado?.cuentaDesde;
-    return c == null ? null : c + SEGUNDOS_CUENTA * 1000 + MARGEN_CUENTA;
+    const e = this.estado;
+    if (!e || e.cuentaDesde == null) return null;
+    // Salas guardadas antes de la cuenta de espera: solo tienen el inicio.
+    return (e.cuentaFin ?? e.cuentaDesde + SEGUNDOS_CUENTA * 1000) + MARGEN_CUENTA;
   }
 
   private async cambiarAsiento(ws: WebSocket, yo: string, raza: RazaId) {
@@ -322,7 +349,7 @@ export class Sala extends DurableObject<Env> {
     const siguiente: Record<"libre" | "ia" | "nadie", Asiento> = { libre: { tipo: "ia" }, ia: { tipo: "nadie" }, nadie: { tipo: "libre" } };
     e.asientos[raza] = siguiente[a.tipo];
     // Cambió la mesa: si había cuenta regresiva, vuelve a empezar.
-    e.cuentaDesde = null;
+    this.cancelarCuenta();
     await this.cambio();
   }
 
@@ -345,7 +372,7 @@ export class Sala extends DurableObject<Env> {
     e.ultimoCambio = Date.now();
     e.listos = [];
     e.propuestas = [];
-    e.cuentaDesde = null;
+    this.cancelarCuenta();
     return true;
   }
 
@@ -428,7 +455,7 @@ export class Sala extends DurableObject<Env> {
     }
     const fin = this.finCuenta();
     if (fin !== null && fin <= ahora + 20) {
-      // Todos listos y la cuenta terminó: se abre el Portal.
+      // La cuenta terminó: se abre el Portal (con quien esté sentado, listo o no).
       this.revisarCuenta();
       if (e.cuentaDesde !== null && this.iniciarPartida()) {
         await this.cambio();
@@ -481,6 +508,7 @@ export class Sala extends DurableObject<Env> {
       listos: e.listos,
       propuestas: e.propuestas,
       cuenta: e.cuentaDesde,
+      cuentaRestante: e.cuentaDesde == null ? null : Math.max(0, (this.finCuenta() ?? 0) - MARGEN_CUENTA - Date.now()),
     };
   }
 
