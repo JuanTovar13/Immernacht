@@ -1,4 +1,6 @@
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
+import "./victoria.css";
 
 /**
  * El Portal del Eclipse abriéndose por completo: el disco de sombra que
@@ -9,22 +11,20 @@ export function OpenPortal() {
   return (
     <div className="relative h-64 w-64 sm:h-80 sm:w-80">
       {/* Anillos de energía girando, dorados */}
-      <motion.svg viewBox="0 0 200 200" className="absolute inset-0" animate={{ rotate: 360 }} transition={{ duration: 50, repeat: Infinity, ease: "linear" }}>
+      <svg viewBox="0 0 200 200" className="vic-p vic-girar-solo inset-0" style={{ "--dur": "50s" } as CSSProperties}>
         <circle cx="100" cy="100" r="96" fill="none" stroke="var(--color-eclipse-gold)" strokeOpacity="0.4" strokeWidth="1" strokeDasharray="2 6" />
         {Array.from({ length: 20 }, (_, i) => (
           <line key={i} x1="100" y1="4" x2="100" y2="18" stroke="var(--color-eclipse-gold)" strokeWidth="1" opacity="0.6" transform={`rotate(${i * 18} 100 100)`} />
         ))}
-      </motion.svg>
-      <motion.svg viewBox="0 0 200 200" className="absolute inset-4" animate={{ rotate: -360 }} transition={{ duration: 34, repeat: Infinity, ease: "linear" }}>
+      </svg>
+      <svg viewBox="0 0 200 200" className="vic-p vic-girar-inverso inset-4" style={{ "--dur": "34s" } as CSSProperties}>
         <circle cx="100" cy="100" r="88" fill="none" stroke="var(--color-eclipse-gold)" strokeOpacity="0.3" strokeWidth="0.6" strokeDasharray="1 4" />
-      </motion.svg>
+      </svg>
 
-      {/* Halo masivo */}
-      <motion.div
-        className="absolute inset-6 rounded-full"
-        style={{ background: "radial-gradient(circle, rgba(255,244,214,0.9) 0%, rgba(232,196,104,0.5) 45%, transparent 72%)", filter: "blur(4px)" }}
-        animate={{ scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      {/* Halo masivo (el degradado ya es suave: sin filtro de desenfoque) */}
+      <div
+        className="vic-p vic-halo inset-6 rounded-full"
+        style={{ background: "radial-gradient(circle, rgba(255,244,214,0.9) 0%, rgba(232,196,104,0.5) 45%, rgba(232,196,104,0.12) 62%, transparent 74%)", "--dur": "3s" } as CSSProperties}
       />
 
       {/* Núcleo blanco-dorado radiante */}

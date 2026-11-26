@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
+import type { CSSProperties } from "react";
 import type { TipoEvento } from "../game/types";
+import "./victoria.css";
 
 export function EventThemeMotif({ tipo }: { tipo: TipoEvento | "global" }) {
   switch (tipo) {
@@ -421,15 +423,21 @@ function GlobalMotif() {
         transition={{ duration: 1.2, ease: [0.2, 0.7, 0.3, 1] }}
       />
       {/* Anillos que giran en sentidos opuestos */}
+      {/* Giran por CSS (sin JavaScript en cada fotograma) */}
       {[64, 86].map((tam, i) => (
         <motion.div
           key={tam}
-          className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-dashed"
-          style={{ width: `${tam}vmin`, height: `${tam}vmin`, borderColor: "color-mix(in srgb, var(--global-bright) 35%, transparent)" }}
+          className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2"
+          style={{ width: `${tam}vmin`, height: `${tam}vmin` }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: 1, rotate: i ? -360 : 360 }}
-          transition={{ opacity: { duration: 1, delay: 0.6 }, rotate: { duration: i ? 70 : 50, repeat: Infinity, ease: "linear" } }}
-        />
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1, delay: 0.6 }}
+        >
+          <div
+            className={`vic-p ${i ? "vic-girar-inverso" : "vic-girar-solo"} inset-0 rounded-full border border-dashed`}
+            style={{ borderColor: "color-mix(in srgb, var(--global-bright) 35%, transparent)", "--dur": `${i ? 70 : 50}s` } as CSSProperties}
+          />
+        </motion.div>
       ))}
     </div>
   );

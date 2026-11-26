@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { OpenPortal } from "../components/OpenPortal";
 import { VictoryBurst } from "../components/VictoryBurst";
 import { FondoVictoria } from "../components/VictoriaRaza";
@@ -243,25 +243,24 @@ function TarjetaGanador({ raza, texto }: { raza: Raza; texto: string }) {
         {/* Anverso: emblema y nombre (define el tamaño de la tarjeta) */}
         <div className="flex min-h-[17rem] flex-col items-center justify-center gap-1.5 rounded-lg border-2 px-5 py-5" style={cara}>
           <span className="text-[10px] uppercase tracking-[0.3em] text-[color:var(--color-eclipse-gold)]">Victoria</span>
-          <motion.img
-            src={raza.logo}
-            alt={`Emblema de ${raza.nombre}`}
-            className="h-24 w-24 object-contain sm:h-28 sm:w-28"
-            style={{ filter: `drop-shadow(0 0 14px color-mix(in srgb, var(${raza.colorVar}) 80%, transparent))` }}
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-          />
+          {/* El brillo va en un degradado detrás (un drop-shadow que late se vuelve a pintar en cada fotograma) */}
+          <div className="vic-p vic-pulso relative h-24 w-24 sm:h-28 sm:w-28" style={{ position: "relative", "--dur": "2.4s" } as CSSProperties}>
+            <div
+              className="absolute -inset-4 rounded-full"
+              style={{ background: `radial-gradient(circle, color-mix(in srgb, var(${raza.colorVar}) 45%, transparent) 0%, transparent 68%)` }}
+            />
+            <img src={raza.logo} alt={`Emblema de ${raza.nombre}`} className="relative h-full w-full object-contain" />
+          </div>
           <p className="text-center font-display text-2xl leading-tight tracking-wide" style={{ color: `var(${raza.colorVar})` }}>
             {raza.nombre}
           </p>
           <p className="text-center text-xs text-[color:var(--color-parchment-dim)]">han abierto el Portal</p>
-          <motion.span
-            className="mt-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-eclipse-gold)]"
-            animate={{ opacity: [0.45, 1, 0.45] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          <span
+            className="vic-p vic-latir mt-1 text-[10px] uppercase tracking-[0.2em] text-[color:var(--color-eclipse-gold)]"
+            style={{ position: "relative", "--dur": "2.2s" } as CSSProperties}
           >
             Toca para leer ↻
-          </motion.span>
+          </span>
         </div>
 
         {/* Reverso: el texto de la victoria */}
