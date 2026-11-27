@@ -331,7 +331,7 @@ export function DigitalGameScreen() {
 
         {/* Panel de control */}
         <div className="flex shrink-0 flex-col gap-3 px-4 pb-4 pt-1 landscape:w-80 landscape:justify-center landscape:pb-4 landscape:pt-16 sm:landscape:pt-20 lg:landscape:w-96">
-          {partida.global && <EfectoGlobalActivo efecto={partida.global} />}
+          {partida.global && <EfectoGlobalActivo efecto={partida.global} jugadores={partida.jugadores.length} />}
           <div className="flex items-center justify-between gap-2">
             <motion.div
               key={`${partida.turno}`}
@@ -568,10 +568,12 @@ function IconoSalida() {
 }
 
 /** Aviso del evento global que sigue en curso (Niebla Espesa, Luna Sangrienta). */
-function EfectoGlobalActivo({ efecto }: { efecto: { id: string; turnos: number } }) {
+function EfectoGlobalActivo({ efecto, jugadores }: { efecto: { id: string; turnos: number }; jugadores: number }) {
   const def = EVENTOS_GLOBALES.find((e) => e.id === efecto.id);
   if (!def) return null;
   const que = efecto.id === "niebla-espesa" ? "nadie puede capturar" : "sin escudos ni fortalezas";
+  // El motor cuenta turnos de jugador; aquí un turno es una ronda completa (todos juegan una vez).
+  const rondas = Math.ceil(efecto.turnos / jugadores);
   return (
     <motion.div
       className="flex items-center justify-center gap-2 rounded-full border px-3 py-1 text-[11px]"
@@ -587,7 +589,7 @@ function EfectoGlobalActivo({ efecto }: { efecto: { id: string; turnos: number }
       <span>🌘</span>
       <span className="font-display tracking-wide">{def.nombre}</span>
       <span className="text-[color:var(--color-parchment-dim)]">
-        · {que} · {efecto.turnos === 1 ? "queda 1 turno" : `quedan ${efecto.turnos} turnos`}
+        · {que} · {rondas === 1 ? "queda 1 turno" : `quedan ${rondas} turnos`}
       </span>
     </motion.div>
   );
