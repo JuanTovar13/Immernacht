@@ -572,28 +572,18 @@ function movimientosSinObligacion(p: Partida): Movimiento[] {
   if (!p.usados[1] && d1 > 0 && !(d1 === d0 && !p.usados[0])) libres.push({ opcion: 1, valor: d1 });
   if (!p.usados[0] && !p.usados[1] && d0 > 0 && d1 > 0) libres.push({ opcion: "suma", valor: d0 + d1 });
 
-  const calcular = (excluirLiberada: boolean) => {
-    const res: Movimiento[] = [];
-    for (const f of fichasDe(p, raza)) {
-      if (f.rel === null || atrapada(p, f)) continue;
-      if (excluirLiberada && f.id === p.fichaLiberada) continue;
-      for (const { opcion, valor } of libres) {
-        const destino = f.rel + valor;
-        if (!destinoValido(p, f, destino)) continue;
-        const capturas = destino <= REL_ENTRADA ? capturasPosibles(p, raza, loopIndex(raza, destino)) : 0;
-        res.push({ fichaId: f.id, opcion, valor, destino, capturas });
-      }
+  // Cualquier ficha en juego puede moverse, también la que se acaba de sacar.
+  const res: Movimiento[] = [];
+  for (const f of fichasDe(p, raza)) {
+    if (f.rel === null || atrapada(p, f)) continue;
+    for (const { opcion, valor } of libres) {
+      const destino = f.rel + valor;
+      if (!destinoValido(p, f, destino)) continue;
+      const capturas = destino <= REL_ENTRADA ? capturasPosibles(p, raza, loopIndex(raza, destino)) : 0;
+      res.push({ fichaId: f.id, opcion, valor, destino, capturas });
     }
-    return res;
-  };
-
-  // "Sacar la ficha y avanzar con otra ficha diferente… Solo se puede avanzar con
-  //  la misma ficha si no cuenta con más fichas en juego."
-  if (p.fichaLiberada) {
-    const sinLiberada = calcular(true);
-    if (sinLiberada.length > 0) return sinLiberada;
   }
-  return calcular(false);
+  return res;
 }
 
 function hayAcciones(p: Partida) {
@@ -1181,7 +1171,9 @@ function resolverEvento(p: Partida, evento: EventoDef, j: Jugador): Resolucion {
       // pasarse de la entrada a su carril (ni saltar hacia atrás hasta ella).
       const validas = cercanas
         .filter(({ f }) => cambioValido(objetivo, loopIndex(f.raza, f.rel!)) && cambioValido(f, idx))
-        .sort((a, b) => a.d - b.d || Math.random() - 0.5);
+        .map((c) => ({ ...c, propia: c.f.raza === raza ? 1 : 0, azar: Math.random() }))
+        // La más cercana; a igual distancia, antes una ficha de otra raza.
+        .sort((a, b) => a.d - b.d || a.propia - b.propia || a.azar - b.azar);
       if (!cercanas.length) return { resumen: "No hay fichas a 5 casillas o menos: no pasa nada.", detalle };
       if (!validas.length) return { resumen: "Ninguna ficha cercana puede cambiar de lugar sin pasarse de su carril: no pasa nada.", detalle };
       const { f: otra, d } = validas[0];
