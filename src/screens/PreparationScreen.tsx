@@ -153,7 +153,7 @@ export function PreparationScreen() {
             </>
           ) : (
             <motion.button onClick={jugarDigital} className={CLASE_PRINCIPAL} style={ESTILO_PRINCIPAL} whileTap={{ scale: 0.95 }}>
-              Un jugador
+              Jugar Sin Conexión
             </motion.button>
           )}
           <motion.button
@@ -166,7 +166,7 @@ export function PreparationScreen() {
             }}
             whileTap={{ scale: 0.95 }}
           >
-            Crear sala
+            Crear Sala Online
           </motion.button>
         </motion.div>
       </div>
