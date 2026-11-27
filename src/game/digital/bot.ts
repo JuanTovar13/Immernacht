@@ -1,8 +1,9 @@
 /* Jugador controlado por la máquina: elige la acción con mejor puntaje. */
 import { RAZAS, type RazaId } from "../types";
-import { esRefugio, idxSalida, loopIndex, REL_ENTRADA, REL_META_INI } from "./board";
+import { idxSalida, loopIndex, REL_ENTRADA, REL_META_INI } from "./board";
 import {
   jugadorActual,
+  casillaSegura,
   movimientosLegales,
   FORTALEZAS,
   puedeSacar,
@@ -44,7 +45,7 @@ function puntuar(p: Partida, m: Movimiento): number {
     s += 40 + (m.destino - REL_META_INI) * 3;
   } else {
     const idx = loopIndex(raza, m.destino);
-    if (esRefugio(idx)) s += 12;
+    if (casillaSegura(p, idx)) s += 12;
     else if (formaFortaleza(p, raza, idx, m.fichaId)) {
       // Una fortaleza no se puede comer y frena a los rivales que vienen detrás.
       s += 12 + amenazas(p, raza, idx) * 4;
@@ -53,7 +54,7 @@ function puntuar(p: Partida, m: Movimiento): number {
   if (f.rel !== null && f.rel <= REL_ENTRADA) {
     const origen = loopIndex(raza, f.rel);
     if (fortalezaEn(p, origen)) s -= amenazas(p, raza, origen) * 6; // abandonarla deja sola a la otra ficha
-    else if (!esRefugio(origen)) s += amenazas(p, raza, origen) * 6;
+    else if (!casillaSegura(p, origen)) s += amenazas(p, raza, origen) * 6;
     // acercarse al final pesa un poco más
     s += f.rel * 0.05;
     // Con la Salida llena y un 5 guardado: primero despejar la Salida con el otro dado.

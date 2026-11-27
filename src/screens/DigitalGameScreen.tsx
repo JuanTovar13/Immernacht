@@ -318,6 +318,7 @@ export function DigitalGameScreen() {
               fortalezas={fortalezasActivas(partida)}
               giro={giro}
               ralentizados={Object.fromEntries(partida.jugadores.map((j) => [j.raza, j.maldicion]))}
+              sinRefugios={partida.global?.id === "luna-sangrienta"}
               onFicha={onFicha}
               onDestino={moverA}
               onBase={() => {
@@ -571,7 +572,7 @@ function IconoSalida() {
 function EfectoGlobalActivo({ efecto, jugadores }: { efecto: { id: string; turnos: number }; jugadores: number }) {
   const def = EVENTOS_GLOBALES.find((e) => e.id === efecto.id);
   if (!def) return null;
-  const que = efecto.id === "niebla-espesa" ? "nadie puede capturar" : "sin escudos ni fortalezas";
+  const que = efecto.id === "niebla-espesa" ? "nadie puede capturar" : "sin escudos, fortalezas ni refugios";
   // El motor cuenta turnos de jugador; aquí un turno es una ronda completa (todos juegan una vez).
   const rondas = Math.ceil(efecto.turnos / jugadores);
   return (

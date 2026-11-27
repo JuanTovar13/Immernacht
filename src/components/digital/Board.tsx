@@ -51,6 +51,8 @@ interface BoardProps {
   giro?: number;
   /** Turnos que le quedan ralentizado a cada raza (se marca sobre sus fichas). */
   ralentizados?: Partial<Record<RazaId, number>>;
+  /** Luna Sangrienta: los Refugios (no las Salidas) se ven y funcionan como casillas normales. */
+  sinRefugios?: boolean;
 }
 
 /** Giro de la vista: los textos, emblemas y fichas lo deshacen para verse siempre derechos. */
@@ -70,7 +72,7 @@ const ID_BRILLO_SEL = "brillo-sel";
 const idBrillo = (raza: RazaId) => `brillo-${raza}`;
 
 export function Board(props: BoardProps) {
-  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0, ralentizados = {} } = props;
+  const { fichas, razasEnJuego, turno, movibles, seleccion, destinos, baseActiva, derrumbes, fortalezas, onFicha, onDestino, onBase, giro = 0, ralentizados = {}, sinRefugios = false } = props;
   const lugares = useLugares(fichas);
   const fichaSel = fichas.find((f) => f.id === seleccion);
 
@@ -78,7 +80,7 @@ export function Board(props: BoardProps) {
     <GiroVista.Provider value={giro}>
       <div className="relative h-full w-full select-none" role="img" aria-label="Tablero de Immernacht">
         {/* Capa fija: se pinta una vez (solo cambia si cambian las razas en juego o el giro) */}
-        <TableroFijo activas={razasEnJuego.join(",")} giro={giro} />
+        <TableroFijo activas={razasEnJuego.join(",")} giro={giro} sinRefugios={sinRefugios} />
 
         {/* Anillo del portal: gira por CSS en su propia capa, sin repintar el tablero */}
         <PortalGiratorio />
@@ -179,7 +181,8 @@ function DegradadoBrillo({ id, color }: { id: string; color: string }) {
 }
 
 /** Casillas, bases, rótulos y emblemas: nada de esto se anima. */
-const TableroFijo = memo(function TableroFijo({ activas, giro }: { activas: string; giro: number }) {
+const TableroFijo = memo(function TableroFijo({ activas, giro, sinRefugios }: { activas: string; giro: number; sinRefugios: boolean }) {
+  const especiales = sinRefugios ? [5] : [0, 5, 14];
   const razasEnJuego = activas.split(",");
   return (
     <svg viewBox={VISTA} className="absolute inset-0 h-full w-full" style={CAPA} aria-hidden>
@@ -197,12 +200,12 @@ const TableroFijo = memo(function TableroFijo({ activas, giro }: { activas: stri
 
         {/* Cuatro cuartos: misma geometría rotada */}
         {[0, 1, 2, 3].map((q) => (
-          <CuartoEstatico key={q} q={q} activo={razasEnJuego.includes(RAZA_DE_CUARTO[q])} />
+          <CuartoEstatico key={q} q={q} activo={razasEnJuego.includes(RAZA_DE_CUARTO[q])} especiales={especiales} />
         ))}
 
         {/* Etiquetas (fuera del grupo rotado para que se lean bien) */}
         {[0, 1, 2, 3].map((q) =>
-          [0, 5, 14].map((k) => {
+          especiales.map((k) => {
             const c = rotar(CELDAS_CUARTO0[k].centro, q);
             // Ángulo en pantalla (con el giro de la vista), siempre legible; luego se descuenta el giro.
             let ang = CELDAS_CUARTO0[k].anguloTexto - 90 * q + giro;
@@ -585,7 +588,7 @@ function Cadenas({ idx }: { idx: number }) {
 
 /* ---------------- Partes fijas del tablero ---------------- */
 
-const CuartoEstatico = memo(function CuartoEstatico({ q, activo }: { q: number; activo: boolean }) {
+const CuartoEstatico = memo(function CuartoEstatico({ q, activo, especiales }: { q: number; activo: boolean; especiales: number[] }) {
   const raza = RAZA_DE_CUARTO[q];
   const col = COLOR_TABLERO[raza];
   const B = BASE_RECT0;
@@ -625,7 +628,7 @@ const CuartoEstatico = memo(function CuartoEstatico({ q, activo }: { q: number; 
 
       {/* Casillas del recorrido */}
       {CELDAS_CUARTO0.map((c, k) => {
-        const especial = k === 0 || k === 5 || k === 14;
+        const especial = especiales.includes(k);
         return (
           <polygon
             key={k}
@@ -637,7 +640,7 @@ const CuartoEstatico = memo(function CuartoEstatico({ q, activo }: { q: number; 
         );
       })}
       {/* Franja de color en las casillas especiales */}
-      {[0, 5, 14].map((k) => (
+      {especiales.map((k) => (
         <polygon key={k} points={pts(CELDAS_CUARTO0[k].puntos)} fill={col.base} opacity={0.85} />
       ))}
 

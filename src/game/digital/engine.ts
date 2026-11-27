@@ -17,6 +17,7 @@ import {
   REL_META_INI,
   REL_MIN,
   relDesdeLoop,
+  tipoCasilla,
 } from "./board";
 
 /** Probabilidad de que ocurra un evento al terminar un turno (igual que en la app del tablero físico). */
@@ -26,6 +27,9 @@ export const PROB_EVENTO = 0.35;
  * en toda la partida). Es un objeto para poder probar variantes en las simulaciones.
  */
 export const EVENTO_GLOBAL: { prob: number; solo?: string } = { prob: 0.01 };
+/** Rondas completas que duran la Niebla Espesa y la Luna Sangrienta. */
+export const RONDAS_GLOBAL = 2;
+
 /** Valor que hay que sacar (en un dado o en la suma) para sacar una ficha de la base. */
 export const VALOR_SALIDA = 5;
 /** Casillas que avanza el premio por comer una ficha. */
@@ -415,10 +419,15 @@ export function crearPartida(jugadores: { raza: RazaId; tipo: TipoJugador }[]): 
 /** ¿La ficha resiste un ataque? Consume la protección de Simbiosis si la usa. */
 /** Niebla Espesa: nadie puede capturar. */
 const niebla = (p: Partida) => p.global?.id === "niebla-espesa";
-/** Luna Sangrienta: escudos, protecciones y fortalezas no surten efecto. */
-const lunaSangrienta = (p: Partida) => p.global?.id === "luna-sangrienta";
-/** ¿Está prohibido capturar en esta casilla? En Salidas y Refugios, y en todas con Niebla Espesa. */
-const sinCapturas = (p: Partida, idx: number) => esRefugio(idx) || niebla(p);
+/** Luna Sangrienta: escudos, protecciones, fortalezas y Refugios no surten efecto. */
+export const lunaSangrienta = (p: Partida) => p.global?.id === "luna-sangrienta";
+/** ¿La casilla protege a quien está en ella? Salidas y Refugios; con Luna Sangrienta, solo las Salidas. */
+export function casillaSegura(p: Partida, idx: number): boolean {
+  if (!esRefugio(idx)) return false;
+  return !lunaSangrienta(p) || tipoCasilla(idx).tipo === "salida";
+}
+/** ¿Está prohibido capturar en esta casilla? En las casillas seguras, y en todas con Niebla Espesa. */
+const sinCapturas = (p: Partida, idx: number) => casillaSegura(p, idx) || niebla(p);
 
 function resisteAtaque(p: Partida, f: Ficha): boolean {
   if (lunaSangrienta(p)) return false;
@@ -987,7 +996,7 @@ function resolverGlobal(p: Partida, evento: EventoGlobalDef): Resolucion {
       // Se mueven primero las que van delante en el sentido del movimiento, para no estorbarse.
       const fichas = p.fichas
         .filter(enRecorrido)
-        .filter((f) => avanza || !esRefugio(loopIndex(f.raza, f.rel!)))
+        .filter((f) => avanza || !casillaSegura(p, loopIndex(f.raza, f.rel!)))
         .sort((a, b) => (avanza ? b.rel! - a.rel! : a.rel! - b.rel!));
       let movidas = 0;
       for (const f of fichas) {
@@ -1006,13 +1015,13 @@ function resolverGlobal(p: Partida, evento: EventoGlobalDef): Resolucion {
     }
     case "niebla-espesa":
     case "luna-sangrienta": {
-      // Una ronda completa: hasta que todos hayan jugado un turno.
-      p.global = { id: evento.id, turnos: p.jugadores.length };
+      // Dos rondas completas: hasta que todos hayan jugado dos turnos.
+      p.global = { id: evento.id, turnos: p.jugadores.length * RONDAS_GLOBAL };
       return {
         resumen:
           evento.id === "niebla-espesa"
-            ? "Nadie puede capturar hasta que todos hayan jugado un turno."
-            : "Escudos, protecciones y fortalezas no sirven hasta que todos hayan jugado un turno.",
+            ? "Nadie puede capturar durante 2 rondas."
+            : "Escudos, protecciones, fortalezas y Refugios no sirven durante 2 rondas.",
         detalle,
       };
     }

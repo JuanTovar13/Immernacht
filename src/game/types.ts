@@ -89,8 +89,8 @@ export interface EventoGlobalDef {
 export const EVENTOS_GLOBALES: EventoGlobalDef[] = [
   { id: "tornado", nombre: "Tornado", tipo: "global", descripcion: "Un tornado nacido del Portal barre el mundo entero.", efecto: "Todas las fichas del recorrido avanzan 2 casillas, sin entrar al carril final." },
   { id: "retroceso-del-tiempo", nombre: "Retroceso del Tiempo", tipo: "global", descripcion: "El Portal invierte por un instante el curso del tiempo.", efecto: "Todas las fichas del recorrido retroceden 2 casillas, salvo las que están en una salida o un refugio." },
-  { id: "niebla-espesa", nombre: "Niebla Espesa", tipo: "global", descripcion: "Una niebla impenetrable cubre el campo de batalla.", efecto: "Durante una ronda completa nadie puede capturar." },
-  { id: "luna-sangrienta", nombre: "Luna Sangrienta", tipo: "global", descripcion: "La luna se tiñe de rojo y ninguna magia protectora resiste su furia.", efecto: "Durante una ronda completa los escudos, las protecciones y las fortalezas no surten efecto." },
+  { id: "niebla-espesa", nombre: "Niebla Espesa", tipo: "global", descripcion: "Una niebla impenetrable cubre el campo de batalla.", efecto: "Durante 2 rondas completas nadie puede capturar." },
+  { id: "luna-sangrienta", nombre: "Luna Sangrienta", tipo: "global", descripcion: "La luna se tiñe de rojo y ninguna magia protectora resiste su furia.", efecto: "Durante 2 rondas completas los escudos, las protecciones, las fortalezas y los Refugios no surten efecto (las Salidas siguen protegiendo)." },
   { id: "sombra-del-eclipse", nombre: "Sombra del Eclipse", tipo: "global", descripcion: "La sombra del eclipse cae sobre todos los pueblos.", efecto: "Todos los jugadores quedan ralentizados durante su próximo turno." },
   { id: "llamado-del-portal", nombre: "Llamado del Portal", tipo: "global", descripcion: "El Portal llama a quienes aún esperan su oportunidad.", efecto: "Cada raza con fichas en la base saca una a su salida, si hay sitio." },
 ];
